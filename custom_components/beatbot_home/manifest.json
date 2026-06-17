@@ -1,0 +1,21 @@
+{
+  "domain": "beatbot_home",
+  "name": "Beatbot Home",
+  "codeowners": [
+    "@Beatbot-Robotics"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http",
+    "persistent_notification"
+  ],
+  "documentation": "https://github.com/Beatbot-Robotics/ha_beatbot_home/README.md",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Beatbot-Robotics/ha_beatbot_home/issues",
+  "loggers": [
+    "Beatbot Home"
+  ],
+  "requirements": [],
+  "version": "v0.0.1"
+}

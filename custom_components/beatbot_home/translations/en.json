@@ -1,0 +1,169 @@
+{
+  "config": {
+    "step": {
+      "pick_implementation": {
+        "title": "Pick Integration Method"
+      },
+      "oauth2": {
+        "title": "Authenticate with Beatbot",
+        "description": "Log in to your Beatbot account to connect your devices."
+      }
+    },
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "authorize_timeout": "Timeout during authorization.",
+      "invalid_auth": "Authentication failed."
+    },
+    "error": {
+      "invalid_auth": "Authentication failed.",
+      "connection_error": "Cannot connect to Beatbot servers."
+    }
+  },
+  "entity": {
+    "vacuum": {
+      "beatbot_pool_vacuum": {
+        "name": "Pool Cleaner"
+      },
+      "beatbot_lawn_mower_vacuum": {
+        "name": "Lawn Mower"
+      }
+    },
+    "sensor": {
+      "work_status": {
+        "name": "Status",
+        "state": {
+          "standby": "Standby",
+          "goto_charge": "Going to charge",
+          "charging": "Charging",
+          "charge_done": "Charge done",
+          "paused": "Paused",
+          "cleaning": "Cleaning",
+          "sleep": "Sleep",
+          "return_trip": "Return trip",
+          "clean_done": "Clean done",
+          "remote_control": "Remote control",
+          "clean_wait": "Clean wait",
+          "wifi_connect": "Wi-Fi connecting",
+          "diving": "Diving",
+          "emerge": "Emerging",
+          "auto_dock": "Auto dock",
+          "dock": "Dock",
+          "finish_connect": "Connected",
+          "self_cleaning": "Self cleaning",
+          "replenish_energy": "Replenishing energy",
+          "chase_light": "Chasing light",
+          "dock_done": "Dock done"
+        }
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "firmware": {
+        "name": "Firmware"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "Charging"
+      },
+      "online": {
+        "name": "Online"
+      },
+      "dust_box_full": {
+        "name": "Dust box full"
+      },
+      "dust_box_loss": {
+        "name": "Dust box lost"
+      },
+      "power_low": {
+        "name": "Low power"
+      },
+      "power_cutting": {
+        "name": "Power cut"
+      },
+      "env_high_temperature": {
+        "name": "High temperature"
+      },
+      "env_low_temperature": {
+        "name": "Low temperature"
+      },
+      "motor_error": {
+        "name": "Motor error"
+      },
+      "motor_wheel_left": {
+        "name": "Left wheel motor"
+      },
+      "motor_wheel_right": {
+        "name": "Right wheel motor"
+      },
+      "motor_thruster_left": {
+        "name": "Left thruster motor"
+      },
+      "motor_thruster_right": {
+        "name": "Right thruster motor"
+      },
+      "motor_pump": {
+        "name": "Pump motor"
+      },
+      "motor_airpump_left": {
+        "name": "Left air pump motor"
+      },
+      "motor_airpump_right": {
+        "name": "Right air pump motor"
+      },
+      "motor_brush": {
+        "name": "Brush motor"
+      },
+      "motor_reagent": {
+        "name": "Reagent motor"
+      },
+      "motor_rod": {
+        "name": "Rod motor"
+      },
+      "enter_shawdow_water_error": {
+        "name": "Shadow water error"
+      },
+      "trapped": {
+        "name": "Trapped"
+      },
+      "charge_high_temperature": {
+        "name": "Charging high temp"
+      },
+      "charge_low_temperature": {
+        "name": "Charging low temp"
+      },
+      "motor_thruster": {
+        "name": "Thruster motor"
+      },
+      "platform_clean_err": {
+        "name": "Platform clean error"
+      }
+    },
+    "select": {
+      "clean_mode": {
+        "name": "Clean mode",
+        "state": {
+          "fast": "Fast",
+          "surface": "Surface",
+          "custom": "Custom",
+          "standard": "Standard",
+          "pro": "Pro",
+          "cec": "CEC",
+          "multi": "Multi",
+          "ai": "AI",
+          "platform": "Platform"
+        }
+      }
+    },
+    "button": {
+      "dock": {
+        "name": "Dock"
+      }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware update"
+      }
+    }
+  }
+}
