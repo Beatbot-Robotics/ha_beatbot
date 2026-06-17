@@ -2,8 +2,8 @@ from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.const import EntityCategory, PERCENTAGE
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from iot.const import DOMAIN
-from iot.category import STATUS_MAP_BY_CATEGORY, ProductCategory
+from .iot.const import DOMAIN
+from .iot.category import STATUS_MAP_BY_CATEGORY, ProductCategory
 from .coordinator import BeatbotCoordinator
 from .models import BeatbotDeviceData
 

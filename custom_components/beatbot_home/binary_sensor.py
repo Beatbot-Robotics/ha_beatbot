@@ -3,8 +3,8 @@ from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from iot.category import ERROR_BITS_BY_CATEGORY
-from iot.const import DOMAIN
+from .iot.category import ERROR_BITS_BY_CATEGORY
+from .iot.const import DOMAIN
 from .coordinator import BeatbotCoordinator
 from .models import BeatbotDeviceData
 

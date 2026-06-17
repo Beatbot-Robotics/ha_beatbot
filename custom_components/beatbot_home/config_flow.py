@@ -1,9 +1,11 @@
 import voluptuous as vol
 from homeassistant import config_entries
-from iot.const import DOMAIN
 
 
-class BeatbotConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+DOMAIN = "beatbot_home"
+
+
+class BeatbotConfigFlow(config_entries.ConfigFlow, domain="beatbot_home"):
     VERSION = 1
 
     async def async_step_user(self, user_input=None):

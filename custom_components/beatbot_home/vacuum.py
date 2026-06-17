@@ -5,8 +5,8 @@ from homeassistant.components.vacuum import (
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from iot.category import ProductCategory, VACUUM_FEATURES_BY_CATEGORY, STATUS_MAP_BY_CATEGORY
-from iot.const import DOMAIN
+from .iot.category import ProductCategory, VACUUM_FEATURES_BY_CATEGORY, STATUS_MAP_BY_CATEGORY
+from .iot.const import DOMAIN
 
 from .coordinator import BeatbotCoordinator
 from .models import BeatbotDeviceData

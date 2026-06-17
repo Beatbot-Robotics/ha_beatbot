@@ -7,7 +7,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 
 from .api import BeatbotAPI, BeatbotAuthError, BeatbotConnectionError
 from .models import BeatbotDeviceData
-from iot.const import DOMAIN, NETWORK_REFRESH_INTERVAL
+from .iot.const import DOMAIN, NETWORK_REFRESH_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
