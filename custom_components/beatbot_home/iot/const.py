@@ -7,9 +7,10 @@ BEATBOT_HOME_HTTP_API_TIMEOUT: int = 30
 
 NETWORK_REFRESH_INTERVAL: int = 30
 
-OAUTH2_CLIENT_ID: str = '2882303761520251711'
-OAUTH2_AUTH_URL: str = 'https://na-iot.beatbot.com/oauth2/authorize'
-DEFAULT_OAUTH2_API_HOST: str = 'open-api.beatbot.com'
+OAUTH2_CLIENT_ID: str = 'home-assistant'
+OAUTH2_AUTHORIZE_URL: str = 'http://localhost:8000/oauth2/authorize'
+OAUTH2_TOKEN_URL: str = 'http://host.docker.internal:8000/oauth2/token'
+OAUTH2_SCOPE: str = 'device:info'
 
 # seconds, 14 days
 SPEC_STD_LIB_EFFECTIVE_TIME = 3600*24*14
@@ -19,16 +20,10 @@ MANUFACTURER_EFFECTIVE_TIME = 3600*24*14
 SUPPORTED_PLATFORMS: list = [
     'binary_sensor',
     'button',
-    'climate',
-    'cover',
     'device_tracker',
-    'event',
-    'notify',
-    'number',
     'select',
     'sensor',
     'switch',
-    'text',
     'vacuum',
 ]
 
@@ -70,3 +65,14 @@ DEFAULT_CTRL_MODE: str = 'auto'
 # Registered in Beatbot OAuth 2.0 Service
 # DO NOT CHANGE UNLESS YOU HAVE AN ADMINISTRATOR PERMISSION
 OAUTH_REDIRECT_URL: str = 'http://homeassistant.local:8123'
+
+# Beatbot cloud API gateway base URL (reaches the device-resource-service
+# through the /device_resource/** route, which has no Signature/Authentic filters)
+BEATBOT_API_BASE_URL: str = 'http://host.docker.internal:8000'
+BEATBOT_API_DEVICES_PATH: str = '/device_resource/api/v1/devices'
+BEATBOT_API_DEVICE_STATE_PATH: str = '/device_resource/api/v1/devices/state'
+BEATBOT_API_DEVICE_ACTIONS_PATH: str = '/device_resource/api/v1/devices'
+BEATBOT_API_PLATFORM: str = 'homeassistant'
+
+# Result envelope success code (ResultCode.SUCCESS on the backend)
+RESULT_SUCCESS_CODE: int = 200

@@ -4,15 +4,29 @@
       "pick_implementation": {
         "title": "Pick Integration Method"
       },
-      "oauth2": {
-        "title": "Authenticate with Beatbot",
-        "description": "Log in to your Beatbot account to connect your devices."
+      "auth": {
+        "title": "Authorize Beatbot Account",
+        "description": "Follow the link to log in to Beatbot and authorize Home Assistant to access your devices."
+      },
+      "reauth_confirm": {
+        "title": "[%key:common::config_flow::title::reauth%]",
+        "description": "The Beatbot Home integration needs to re-authenticate your account"
       }
     },
     "abort": {
-      "already_configured": "This device is already configured.",
-      "authorize_timeout": "Timeout during authorization.",
-      "invalid_auth": "Authentication failed."
+      "already_configured": "This account is already configured.",
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+      "authorize_url_timeout": "Timed out generating authorize URL.",
+      "no_url_available": "No authorization URL available. Make sure Home Assistant is reachable, or enable My Home Assistant.",
+      "oauth_timeout": "Timed out while fetching the OAuth token.",
+      "oauth_failed": "Failed to fetch the OAuth token.",
+      "oauth_unauthorized": "Authorization refused (authentication failed).",
+      "oauth_error": "The OAuth server returned an invalid token.",
+      "user_rejected_authorize": "You rejected the authorization: {error}.",
+      "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
+      "missing_credentials": "[%key:common::config_flow::abort::missing_credentials%]",
+      "missing_configuration": "[%key:common::config_flow::abort::missing_configuration%]",
+      "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]"
     },
     "error": {
       "invalid_auth": "Authentication failed.",

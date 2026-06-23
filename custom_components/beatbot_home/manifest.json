@@ -5,17 +5,15 @@
     "@Beatbot-Robotics"
   ],
   "config_flow": true,
-  "dependencies": [
-    "http",
-    "persistent_notification"
-  ],
+  "dependencies": [],
   "documentation": "https://github.com/Beatbot-Robotics/ha_beatbot_home/README.md",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Beatbot-Robotics/ha_beatbot_home/issues",
+  "requires_home_assistant": "2025.4.0",
   "loggers": [
-    "Beatbot Home"
+    "custom_components.beatbot_home"
   ],
-  "requirements": [],
+  "requirements": ["PyJWT>=2.0"],
   "version": "v0.0.1"
 }

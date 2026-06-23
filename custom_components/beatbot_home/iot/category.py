@@ -8,6 +8,14 @@ class ProductCategory(StrEnum):
     LAWN_MOWER = "lawn_mower"
 
 
+ALEXA_CATEGORY_MAP: dict[str, ProductCategory] = {
+    "VACUUM_CLEANER": ProductCategory.POOL_CLEAN_BOT,
+    "POOL_CLEANER": ProductCategory.POOL_CLEAN_BOT,
+    "MOWER": ProductCategory.LAWN_MOWER,
+    "LAWN_MOWER": ProductCategory.LAWN_MOWER,
+}
+
+
 STATUS_MAP_BY_CATEGORY: dict[ProductCategory, dict[int, VacuumActivity]] = {
     # VacuumActivity 的银蛇
     ProductCategory.POOL_CLEAN_BOT: {
@@ -69,13 +77,11 @@ ERROR_BITS_BY_CATEGORY: dict[ProductCategory, list[tuple[str, int]]] = {
 
 VACUUM_FEATURES_BY_CATEGORY: dict[ProductCategory, VacuumEntityFeature] = {
     ProductCategory.POOL_CLEAN_BOT: VacuumEntityFeature.STATE
-                                    | VacuumEntityFeature.BATTERY
                                     | VacuumEntityFeature.START
                                     | VacuumEntityFeature.PAUSE
                                     | VacuumEntityFeature.STOP
                                     | VacuumEntityFeature.RETURN_HOME,
     ProductCategory.LAWN_MOWER: VacuumEntityFeature.STATE
-                                | VacuumEntityFeature.BATTERY
                                 | VacuumEntityFeature.START
                                 | VacuumEntityFeature.PAUSE
                                 | VacuumEntityFeature.STOP

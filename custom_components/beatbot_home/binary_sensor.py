@@ -3,7 +3,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .iot.category import ERROR_BITS_BY_CATEGORY
+from .iot.category import ALEXA_CATEGORY_MAP, ERROR_BITS_BY_CATEGORY
 from .iot.const import DOMAIN
 from .coordinator import BeatbotCoordinator
 from .models import BeatbotDeviceData
@@ -112,6 +112,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     for device_id, device_data in coordinator.data.items():
         entities.append(BeatbotChargingSensor(coordinator, device_id))
         entities.append(BeatbotOnlineSensor(coordinator, device_id))
-        for key, bit in ERROR_BITS_BY_CATEGORY.get(device_data.product_category, []):
+        category = ALEXA_CATEGORY_MAP.get(device_data.product_category)
+        for key, bit in ERROR_BITS_BY_CATEGORY.get(category, []):
             entities.append(BeatbotErrorBitSensor(coordinator, device_id, key, bit))
     async_add_entities(entities)

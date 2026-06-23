@@ -1,11 +1,12 @@
 from homeassistant.components.vacuum import (
     StateVacuumEntity,
     VacuumActivity,
+    VacuumEntityFeature,
 )
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .iot.category import ProductCategory, VACUUM_FEATURES_BY_CATEGORY, STATUS_MAP_BY_CATEGORY
+from .iot.category import ALEXA_CATEGORY_MAP, VACUUM_FEATURES_BY_CATEGORY, STATUS_MAP_BY_CATEGORY
 from .iot.const import DOMAIN
 
 from .coordinator import BeatbotCoordinator
@@ -24,8 +25,12 @@ class BeatbotPoolVacuum(CoordinatorEntity, StateVacuumEntity):
         super().__init__(coordinator)
         self._device_id = device_id
         self._attr_unique_id = device_id
-        category = ProductCategory(self.coordinator.data[self._device_id].product_category)
-        self._attr_supported_features = VACUUM_FEATURES_BY_CATEGORY.get(category)
+        category = ALEXA_CATEGORY_MAP.get(
+            self.coordinator.data[self._device_id].product_category
+        )
+        self._attr_supported_features = VACUUM_FEATURES_BY_CATEGORY.get(
+            category, VacuumEntityFeature(0)
+        )
         self._status_map = STATUS_MAP_BY_CATEGORY.get(category, {})
 
     @property

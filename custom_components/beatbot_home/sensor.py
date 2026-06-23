@@ -3,7 +3,7 @@ from homeassistant.const import EntityCategory, PERCENTAGE
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .iot.const import DOMAIN
-from .iot.category import STATUS_MAP_BY_CATEGORY, ProductCategory
+from .iot.category import ALEXA_CATEGORY_MAP, STATUS_MAP_BY_CATEGORY
 from .coordinator import BeatbotCoordinator
 from .models import BeatbotDeviceData
 
@@ -23,7 +23,9 @@ class BeatbotStatusSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self._device_id = device_id
         self._attr_unique_id = f"{device_id}_status"
-        category = ProductCategory(self.coordinator.data[self._device_id].product_category)
+        category = ALEXA_CATEGORY_MAP.get(
+            self.coordinator.data[self._device_id].product_category
+        )
         self._status_map = STATUS_MAP_BY_CATEGORY.get(category, {})
         self._attr_options = list(self._status_map.values())
 
