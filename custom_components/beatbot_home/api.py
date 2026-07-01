@@ -3,11 +3,16 @@
 Targets the device-resource-service (OAuth2 resource server). The gateway
 forwards /device_resource/** without Signature/Authentic filters, so standard
 `Authorization: Bearer <jwt>` (added by OAuth2Session) is all that is needed.
-The discovery endpoint returns an Alexa-style `{"endpoints": [...]}` payload.
+
+The HA discovery endpoint (`/devices/ha`) returns a `HaDiscoveryResult` object
+(`{"devices": [...]}`) carrying device identity, product info and capability
+mappings only — no runtime state. Runtime state must be fetched separately via
+`/devices/state/{deviceId}`.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -19,10 +24,13 @@ from .iot.const import (
     BEATBOT_API_BASE_URL,
     BEATBOT_API_DEVICE_ACTIONS_PATH,
     BEATBOT_API_DEVICES_PATH,
-    BEATBOT_API_PLATFORM,
+    BEATBOT_API_DEVICE_STATES_PATH,
+    DEV_MODE,
+    INTERFACE_WORK_MODE,
+    REGION_API_BASE_URL,
     RESULT_SUCCESS_CODE,
 )
-from .models import BeatbotDeviceData
+from .models import BeatbotCapability, BeatbotDeviceData, FirmwareVersion
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,12 +55,22 @@ class BeatbotAPI:
         self._hass = hass
         self._entry = entry
         self._session = session
+        # Resource API base URL is region-specific. The region comes from a
+        # custom JWT claim decoded in the config flow and stored on the entry.
+        # Unknown/missing region falls back to the dev base URL. DEV_MODE forces
+        # the local dev backend regardless of region (debug only).
+        if DEV_MODE:
+            self._base_url = BEATBOT_API_BASE_URL
+        else:
+            self._base_url = REGION_API_BASE_URL.get(
+                entry.data.get("region"), BEATBOT_API_BASE_URL
+            )
 
     async def _request(
         self, method: str, path: str, *, params: dict[str, str] | None = None,
         json_body: Any | None = None,
     ) -> Any:
-        url = f"{BEATBOT_API_BASE_URL}{path}"
+        url = f"{self._base_url}{path}"
         try:
             resp = await self._session.async_request(
                 method, url, params=params, json=json_body
@@ -88,56 +106,201 @@ class BeatbotAPI:
         return payload.get("data")
 
     async def get_devices(self) -> list[BeatbotDeviceData]:
-        """Return the user's discovered devices.
+        """Return the user's discovered devices from the HA discovery endpoint.
 
-        The endpoint returns a JSON string (Alexa discovery format) wrapped in
-        the Result envelope, e.g. data = '{"endpoints":[{...}]}'.
+        The endpoint returns a Result envelope wrapping a `HaDiscoveryResult`
+        object: data = {"devices": [{deviceId, productId, productCategory,
+        isOnline, ...}]}. Runtime state (work status, battery, etc.) is not
+        included and must be fetched via `/devices/state/{deviceId}`.
         """
-        import json
-
-        raw = await self._request(
-            "GET", BEATBOT_API_DEVICES_PATH,
-            params={"platform": BEATBOT_API_PLATFORM},
-        )
+        raw = await self._request("GET", BEATBOT_API_DEVICES_PATH)
         if not raw:
             return []
-        try:
-            discovery = json.loads(raw) if isinstance(raw, str) else raw
-        except (json.JSONDecodeError, TypeError) as err:
-            raise BeatbotConnectionError(f"Invalid discovery payload: {err}") from err
+        # `data` is a JSON object for the HA endpoint; keep the string fallback
+        # in case a gateway hop stringifies the payload.
+        if isinstance(raw, str):
+            try:
+                discovery = json.loads(raw)
+            except (json.JSONDecodeError, TypeError) as err:
+                raise BeatbotConnectionError(
+                    f"Invalid discovery payload: {err}"
+                ) from err
+        else:
+            discovery = raw
 
-        endpoints = discovery.get("endpoints") or []
+        devices = (discovery or {}).get("devices") or []
         result: list[BeatbotDeviceData] = []
-        for endpoint in endpoints:
-            device = self._parse_endpoint(endpoint)
-            if device is not None:
-                result.append(device)
+        for device in devices:
+            parsed = self._parse_device(device)
+            if parsed is not None:
+                result.append(parsed)
         return result
 
     @staticmethod
-    def _parse_endpoint(endpoint: dict[str, Any]) -> BeatbotDeviceData | None:
-        device_id = endpoint.get("endpointId")
+    def _parse_device(device: dict[str, Any]) -> BeatbotDeviceData | None:
+        device_id = device.get("deviceId")
         if not device_id:
             return None
-        categories = endpoint.get("display_categories") or endpoint.get("displayCategories") or []
-        additional = endpoint.get("additionalAttributes") or {}
+        versions = [
+            FirmwareVersion(
+                channel=v.get("channel", 0),
+                version=v.get("version") or "",
+            )
+            for v in (device.get("versions") or [])
+            if isinstance(v, dict)
+        ]
         return BeatbotDeviceData(
             device_id=device_id,
-            product_id=additional.get("model") or "",
-            product_category=categories[0] if categories else "",
+            product_id=device.get("productId") or "",
+            product_category=device.get("productCategory") or "",
+            name=device.get("name") or "",
+            model=device.get("model") or "",
             work_status=0,
             work_mode=0,
             error_code=0,
             battery_level=0,
-            versions=[],
-            is_online=True,
-            is_charging=False,
+            versions=versions,
+            is_online=bool(device.get("isOnline", False)),
+            work_mode_options=BeatbotAPI._parse_work_mode_options(
+                device.get("capabilities")
+            ),
+            capabilities=BeatbotAPI._parse_capabilities(
+                device.get("capabilities")
+            ),
         )
 
-    async def send_command(self, device_id: str, command: str) -> None:
-        """Send an action command to a device."""
+    @staticmethod
+    def _parse_work_mode_options(
+        capabilities: list[dict[str, Any]] | None,
+    ) -> dict[int, str]:
+        """Extract the per-device work-mode value->label map.
+
+        The `select.work_mode` capability carries a JSON `configuration`
+        string: {"options":[{"label":"fast","value":0}, ...]}. Values are not
+        sequential (e.g. 0,2,3,4,7), so the map must be data-driven, not
+        index-based.
+        """
+        for cap in capabilities or []:
+            if cap.get("interfaceInfo") != INTERFACE_WORK_MODE:
+                continue
+            cfg = cap.get("configuration")
+            if isinstance(cfg, str):
+                try:
+                    cfg = json.loads(cfg)
+                except (json.JSONDecodeError, TypeError):
+                    cfg = None
+            if not isinstance(cfg, dict):
+                return {}
+            options: dict[int, str] = {}
+            for opt in cfg.get("options") or []:
+                value = opt.get("value")
+                label = opt.get("label")
+                if value is not None and label:
+                    options[value] = label
+            return options
+        return {}
+
+    @staticmethod
+    def _parse_capabilities(
+        capabilities: list[dict[str, Any]] | None,
+    ) -> dict[str, BeatbotCapability]:
+        """Parse the discovery `capabilities` array into a keyed map.
+
+        Keyed by `interfaceInfo` (e.g. "vacuum.start"). Drives dynamic vacuum
+        feature derivation. Malformed entries (non-dict or missing
+        `interfaceInfo`) are skipped rather than aborting discovery.
+        """
+        parsed: dict[str, BeatbotCapability] = {}
+        for cap in capabilities or []:
+            if not isinstance(cap, dict):
+                continue
+            interface_info = cap.get("interfaceInfo")
+            if not interface_info:
+                continue
+            parsed[interface_info] = BeatbotCapability(
+                interface_info=interface_info,
+                retrievable=bool(cap.get("retrievable", False)),
+                proactively_reported=bool(cap.get("proactivelyReported", False)),
+                non_controllable=bool(cap.get("nonControllable", False)),
+            )
+        return parsed
+
+    async def get_device_states(self) -> dict[str, dict]:
+        """Return batched runtime state for all devices.
+
+        Hits the HA batch state endpoint and returns
+        `{deviceId: {"is_online": bool|None, "states": {interfaceInfo: value}}}`.
+        Identity (device list) comes from `get_devices`; this call only carries
+        runtime values keyed by HA `interfaceInfo`.
+        """
+        raw = await self._request(
+            "GET",
+            BEATBOT_API_DEVICE_STATES_PATH
+        )
+        if isinstance(raw, str):
+            try:
+                payload = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        else:
+            payload = raw
+        devices = (payload or {}).get("devices") or []
+        return {
+            d["deviceId"]: {
+                "is_online": d.get("isOnline"),
+                "states": d.get("states") or {},
+            }
+            for d in devices
+            if d.get("deviceId")
+        }
+
+    async def get_device_state(self, device_id: str) -> dict:
+        """Return runtime state for a single device.
+
+        Hits `GET /devices/{deviceId}/state`; the `data` field is one device
+        bean (same shape as an entry in the batch `devices` array):
+        `{deviceId, isOnline, states}`. Returns
+        `{"is_online": bool|None, "states": {interfaceInfo: value}}`.
+        """
+        raw = await self._request(
+            "GET",
+            f"{BEATBOT_API_DEVICE_ACTIONS_PATH}/{device_id}/state",
+        )
+        if isinstance(raw, str):
+            try:
+                payload = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        else:
+            payload = raw
+        if not isinstance(payload, dict):
+            return {}
+        return {
+            "is_online": payload.get("isOnline"),
+            "states": payload.get("states") or {},
+        }
+
+    async def send_action(self, device_id: str, interface_info: str) -> None:
+        """Issue a parameterless action by its interfaceInfo key."""
         await self._request(
             "POST",
             f"{BEATBOT_API_DEVICE_ACTIONS_PATH}/{device_id}/actions",
-            json_body={"action": command},
+            json_body={"interfaceInfo": interface_info},
+        )
+
+    async def set_work_mode(self, device_id: str, label: str) -> None:
+        """Set the device work mode via the `select.work_mode` capability.
+
+        `label` is the human-readable option string advertised in the
+        capability's `configuration.options` (the same one the select entity
+        shows to the user). The backend resolves the target mode from the
+        label alone — the integer `value` is not sent in the action body.
+        """
+        await self._request(
+            "POST",
+            f"{BEATBOT_API_DEVICE_ACTIONS_PATH}/{device_id}/actions",
+            json_body={
+                "interfaceInfo": INTERFACE_WORK_MODE,
+                "label": label,
+            },
         )

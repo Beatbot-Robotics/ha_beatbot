@@ -74,6 +74,40 @@
       },
       "firmware": {
         "name": "Firmware"
+      },
+      "error": {
+        "name": "Error",
+        "state": {
+          "none": "None",
+          "dust_box_full": "Dust box full",
+          "dust_box_loss": "Dust box lost",
+          "power_low": "Low power",
+          "power_cutting": "Power cut",
+          "env_high_temperature": "High temperature",
+          "env_low_temperature": "Low temperature",
+          "motor_error": "Motor error",
+          "motor_wheel_left": "Left wheel motor",
+          "motor_wheel_right": "Right wheel motor",
+          "motor_thruster_left": "Left thruster motor",
+          "motor_thruster_right": "Right thruster motor",
+          "motor_pump": "Pump motor",
+          "motor_airpump_left": "Left air pump motor",
+          "motor_airpump_right": "Right air pump motor",
+          "motor_brush": "Brush motor",
+          "motor_reagent": "Reagent motor",
+          "motor_rod": "Rod motor",
+          "enter_shawdow_water_error": "Shadow water error",
+          "trapped": "Trapped",
+          "charge_high_temperature": "Charging high temp",
+          "charge_low_temperature": "Charging low temp",
+          "motor_thruster": "Thruster motor",
+          "platform_clean_err": "Platform clean error"
+        }
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Work mode"
       }
     },
     "binary_sensor": {
@@ -82,101 +116,6 @@
       },
       "online": {
         "name": "Online"
-      },
-      "dust_box_full": {
-        "name": "Dust box full"
-      },
-      "dust_box_loss": {
-        "name": "Dust box lost"
-      },
-      "power_low": {
-        "name": "Low power"
-      },
-      "power_cutting": {
-        "name": "Power cut"
-      },
-      "env_high_temperature": {
-        "name": "High temperature"
-      },
-      "env_low_temperature": {
-        "name": "Low temperature"
-      },
-      "motor_error": {
-        "name": "Motor error"
-      },
-      "motor_wheel_left": {
-        "name": "Left wheel motor"
-      },
-      "motor_wheel_right": {
-        "name": "Right wheel motor"
-      },
-      "motor_thruster_left": {
-        "name": "Left thruster motor"
-      },
-      "motor_thruster_right": {
-        "name": "Right thruster motor"
-      },
-      "motor_pump": {
-        "name": "Pump motor"
-      },
-      "motor_airpump_left": {
-        "name": "Left air pump motor"
-      },
-      "motor_airpump_right": {
-        "name": "Right air pump motor"
-      },
-      "motor_brush": {
-        "name": "Brush motor"
-      },
-      "motor_reagent": {
-        "name": "Reagent motor"
-      },
-      "motor_rod": {
-        "name": "Rod motor"
-      },
-      "enter_shawdow_water_error": {
-        "name": "Shadow water error"
-      },
-      "trapped": {
-        "name": "Trapped"
-      },
-      "charge_high_temperature": {
-        "name": "Charging high temp"
-      },
-      "charge_low_temperature": {
-        "name": "Charging low temp"
-      },
-      "motor_thruster": {
-        "name": "Thruster motor"
-      },
-      "platform_clean_err": {
-        "name": "Platform clean error"
-      }
-    },
-    "select": {
-      "clean_mode": {
-        "name": "Clean mode",
-        "state": {
-          "fast": "Fast",
-          "surface": "Surface",
-          "custom": "Custom",
-          "standard": "Standard",
-          "pro": "Pro",
-          "cec": "CEC",
-          "multi": "Multi",
-          "ai": "AI",
-          "platform": "Platform"
-        }
-      }
-    },
-    "button": {
-      "dock": {
-        "name": "Dock"
-      }
-    },
-    "update": {
-      "firmware": {
-        "name": "Firmware update"
       }
     }
   }

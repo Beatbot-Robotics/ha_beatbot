@@ -1,0 +1,57 @@
+"""Select entities for Beatbot Home."""
+
+from __future__ import annotations
+
+import logging
+
+from homeassistant.components.select import SelectEntity
+
+from .coordinator import BeatbotCoordinator
+from .entity import BeatbotEntity
+from .iot.const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
+    """Work mode selector backed by the device's select.work_mode capability."""
+
+    _attr_translation_key = "work_mode"
+
+    def __init__(self, coordinator: BeatbotCoordinator, device_id: str) -> None:
+        super().__init__(coordinator, device_id)
+        self._attr_unique_id = f"{device_id}_work_mode"
+        self._attr_options = list(self.data.work_mode_options.values())
+        self._option_to_value = {
+            label: value for value, label in self.data.work_mode_options.items()
+        }
+
+    @property
+    def available(self) -> bool:
+        return self.data.is_online
+
+    @property
+    def current_option(self) -> str | None:
+        return self.data.work_mode_options.get(self.data.work_mode)
+
+    async def async_select_option(self, option: str) -> None:
+        """Set the device work mode."""
+        if (value := self._option_to_value.get(option)) is None:
+            _LOGGER.warning(
+                "Unknown work mode %r for %s; ignoring", option, self._device_id
+            )
+            return
+        await self.coordinator.api.set_work_mode(self._device_id, option)
+        self.coordinator.async_schedule_device_state_refresh(self._device_id)
+
+
+async def async_setup_entry(hass, entry, async_add_entities):
+    data = hass.data[DOMAIN][entry.entry_id]
+    if data.get("coordinator") is None:
+        return
+    coordinator = data["coordinator"]
+    async_add_entities(
+        BeatbotWorkModeSelect(coordinator, device_id)
+        for device_id, device in coordinator.data.items()
+        if device.work_mode_options
+    )

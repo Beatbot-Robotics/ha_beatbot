@@ -10,10 +10,9 @@ from .api import BeatbotAPI
 from .config_flow import BeatbotOAuth2Implementation
 from .coordinator import BeatbotCoordinator
 from .iot.const import DOMAIN
+from .iot.const import SUPPORTED_PLATFORMS
 
 _LOGGER = logging.getLogger(__name__)
-
-PLATFORMS = ["vacuum", "sensor", "binary_sensor"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -45,13 +44,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "session": session,
     }
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    # Cancel any post-control refresh tasks still sleeping in their delay
+    # window before tearing down the coordinator/api/session they close over.
+    data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if data and data.get("coordinator") is not None:
+        data["coordinator"].async_cancel_pending_refreshes()
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok

@@ -18,16 +18,18 @@ from custom_components.beatbot_home.iot.const import DOMAIN
 REDIRECT_URI = "http://localhost:8123/auth/external/callback"
 
 
-def _make_token(sub: str, *, nonce: str = "v1") -> dict:
+def _make_token(sub: str, *, nonce: str = "v1", region: str | None = None) -> dict:
     """Build a fake OAuth2 token whose access_token is a JWT with `sub`.
 
     `nonce` differentiates tokens for the same account (simulating a refresh)
-    without affecting the decoded `sub` used as unique id.
+    without affecting the decoded `sub` used as unique id. `region` adds the
+    custom region claim used to pick the resource API base URL.
     """
+    claims: dict = {"sub": sub, "nonce": nonce}
+    if region is not None:
+        claims["region"] = region
     return {
-        "access_token": jwt.encode(
-            {"sub": sub, "nonce": nonce}, "not-verified", algorithm="HS256"
-        ),
+        "access_token": jwt.encode(claims, "not-verified", algorithm="HS256"),
         "refresh_token": f"refresh-{sub}-{nonce}",
         "token_type": "bearer",
         "expires_in": 3600,
@@ -105,6 +107,24 @@ async def test_user_flow_creates_entry_with_jwt_sub_unique_id(hass: HomeAssistan
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+async def test_user_flow_stores_region_from_token(hass: HomeAssistant) -> None:
+    """The custom `region` claim is stored on the entry for the API client."""
+    _register_mock_impl(hass, _make_token("account-1", region="cn"))
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"implementation": DOMAIN}
+    )
+    result = await _complete_external_auth(hass, result["flow_id"])
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    assert entry.data["region"] == "cn"
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_reauth_updates_existing_entry_not_duplicate(hass: HomeAssistant) -> None:
     """Reauth with the same account updates the existing entry (no new entry)."""
     original_token = _make_token("account-1", nonce="old")
@@ -117,8 +137,9 @@ async def test_reauth_updates_existing_entry_not_duplicate(hass: HomeAssistant) 
     )
     entry.add_to_hass(hass)
 
-    # New token for the SAME account (different nonce -> different access_token).
-    _register_mock_impl(hass, _make_token("account-1", nonce="new"))
+    # New token for the SAME account (different nonce -> different access_token),
+    # now also carrying a region claim (simulating the backend adding region).
+    _register_mock_impl(hass, _make_token("account-1", nonce="new", region="cn"))
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -152,6 +173,8 @@ async def test_reauth_updates_existing_entry_not_duplicate(hass: HomeAssistant) 
     assert entries[0].unique_id == "account-1"
     new_access_token = entries[0].data["token"]["access_token"]
     assert new_access_token != original_token["access_token"]
+    # Region from the refreshed token is persisted on the entry.
+    assert entries[0].data["region"] == "cn"
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")

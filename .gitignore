@@ -2,3 +2,5 @@
 /.idea/dictionaries/project.xml
 /.idea/vcs.xml
 /.venv-py312-backup/
+__pycache__/
+*.pyc

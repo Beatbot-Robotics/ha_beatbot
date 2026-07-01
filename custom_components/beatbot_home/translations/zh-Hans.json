@@ -74,6 +74,40 @@
       },
       "firmware": {
         "name": "固件版本"
+      },
+      "error": {
+        "name": "错误",
+        "state": {
+          "none": "无",
+          "dust_box_full": "尘盒满",
+          "dust_box_loss": "尘盒丢失",
+          "power_low": "电量不足",
+          "power_cutting": "断电",
+          "env_high_temperature": "环境高温",
+          "env_low_temperature": "环境低温",
+          "motor_error": "电机故障",
+          "motor_wheel_left": "左轮电机",
+          "motor_wheel_right": "右轮电机",
+          "motor_thruster_left": "左推进电机",
+          "motor_thruster_right": "右推进电机",
+          "motor_pump": "水泵电机",
+          "motor_airpump_left": "左气泵电机",
+          "motor_airpump_right": "右气泵电机",
+          "motor_brush": "刷子电机",
+          "motor_reagent": "药剂电机",
+          "motor_rod": "拉杆电机",
+          "enter_shawdow_water_error": "进入阴影水域异常",
+          "trapped": "被困",
+          "charge_high_temperature": "充电高温",
+          "charge_low_temperature": "充电低温",
+          "motor_thruster": "推进电机",
+          "platform_clean_err": "平台清洁异常"
+        }
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "工作模式"
       }
     },
     "binary_sensor": {
@@ -82,101 +116,6 @@
       },
       "online": {
         "name": "在线状态"
-      },
-      "dust_box_full": {
-        "name": "尘盒满"
-      },
-      "dust_box_loss": {
-        "name": "尘盒丢失"
-      },
-      "power_low": {
-        "name": "电量不足"
-      },
-      "power_cutting": {
-        "name": "断电"
-      },
-      "env_high_temperature": {
-        "name": "环境高温"
-      },
-      "env_low_temperature": {
-        "name": "环境低温"
-      },
-      "motor_error": {
-        "name": "电机故障"
-      },
-      "motor_wheel_left": {
-        "name": "左轮电机"
-      },
-      "motor_wheel_right": {
-        "name": "右轮电机"
-      },
-      "motor_thruster_left": {
-        "name": "左推进电机"
-      },
-      "motor_thruster_right": {
-        "name": "右推进电机"
-      },
-      "motor_pump": {
-        "name": "水泵电机"
-      },
-      "motor_airpump_left": {
-        "name": "左气泵电机"
-      },
-      "motor_airpump_right": {
-        "name": "右气泵电机"
-      },
-      "motor_brush": {
-        "name": "刷子电机"
-      },
-      "motor_reagent": {
-        "name": "药剂电机"
-      },
-      "motor_rod": {
-        "name": "拉杆电机"
-      },
-      "enter_shawdow_water_error": {
-        "name": "进入阴影水域异常"
-      },
-      "trapped": {
-        "name": "被困"
-      },
-      "charge_high_temperature": {
-        "name": "充电高温"
-      },
-      "charge_low_temperature": {
-        "name": "充电低温"
-      },
-      "motor_thruster": {
-        "name": "推进电机"
-      },
-      "platform_clean_err": {
-        "name": "平台清洁异常"
-      }
-    },
-    "select": {
-      "clean_mode": {
-        "name": "清洁模式",
-        "state": {
-          "fast": "快速",
-          "surface": "水面",
-          "custom": "自定义",
-          "standard": "标准",
-          "pro": "Pro",
-          "cec": "CEC",
-          "multi": "多模式",
-          "ai": "AI",
-          "platform": "平台"
-        }
-      }
-    },
-    "button": {
-      "dock": {
-        "name": "靠岸"
-      }
-    },
-    "update": {
-      "firmware": {
-        "name": "固件更新"
       }
     }
   }

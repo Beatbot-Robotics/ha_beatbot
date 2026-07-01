@@ -3,48 +3,46 @@ from homeassistant.components.vacuum import (
     VacuumActivity,
     VacuumEntityFeature,
 )
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers.device_registry import DeviceInfo
 
-from .iot.category import ALEXA_CATEGORY_MAP, VACUUM_FEATURES_BY_CATEGORY, STATUS_MAP_BY_CATEGORY
-from .iot.const import DOMAIN
+from .entity import BeatbotEntity
+from .iot.category import (
+    CATEGORY_MAP,
+    STATUS_MAP_BY_CATEGORY,
+    VACUUM_FEATURES_BY_CATEGORY,
+    vacuum_features_from_capabilities,
+)
+from .iot.const import (
+    DOMAIN,
+    INTERFACE_PAUSE,
+    INTERFACE_RETURN_TO_BASE,
+    INTERFACE_START,
+)
 
 from .coordinator import BeatbotCoordinator
-from .models import BeatbotDeviceData
 
 
-class BeatbotPoolVacuum(CoordinatorEntity, StateVacuumEntity):
-    _attr_has_entity_name = True
-    _attr_name = None
-
+class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
     def __init__(
             self,
             coordinator: BeatbotCoordinator,
             device_id: str,
     ) -> None:
-        super().__init__(coordinator)
-        self._device_id = device_id
+        super().__init__(coordinator, device_id)
         self._attr_unique_id = device_id
-        category = ALEXA_CATEGORY_MAP.get(
+        category = CATEGORY_MAP.get(
             self.coordinator.data[self._device_id].product_category
         )
-        self._attr_supported_features = VACUUM_FEATURES_BY_CATEGORY.get(
-            category, VacuumEntityFeature(0)
-        )
+        # Derive features from the device's advertised capabilities when the
+        # backend reports them (so a model that omits e.g. vacuum.start does
+        # not get a non-functional Start button). Fall back to the static
+        # category map only when no capabilities are advertised at all.
+        features = vacuum_features_from_capabilities(self.data.capabilities)
+        if features is None:
+            features = VACUUM_FEATURES_BY_CATEGORY.get(
+                category, VacuumEntityFeature(0)
+            )
+        self._attr_supported_features = features
         self._status_map = STATUS_MAP_BY_CATEGORY.get(category, {})
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device_id)},
-            manufacturer="Beatbot",
-            model=self.data.product_id,
-            sw_version=" ".join(v.version for v in self.data.versions),
-        )
-
-    @property
-    def data(self) -> BeatbotDeviceData:
-        return self.coordinator.data[self._device_id]
 
     @property
     def activity(self) -> VacuumActivity:
@@ -57,19 +55,18 @@ class BeatbotPoolVacuum(CoordinatorEntity, StateVacuumEntity):
         return self.data.is_online
 
     async def async_start(self) -> None:
-        await self.coordinator.api.send_command(self._device_id, "start")
+        await self.coordinator.api.send_action(self._device_id, INTERFACE_START)
+        self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
     async def async_pause(self) -> None:
-        await self.coordinator.api.send_command(self._device_id, "pause")
-
-    async def async_stop(self) -> None:
-        await self.coordinator.api.send_command(self._device_id, "stop")
+        await self.coordinator.api.send_action(self._device_id, INTERFACE_PAUSE)
+        self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
     async def async_return_to_base(self) -> None:
-        await self.coordinator.api.send_command(self._device_id, "return_to_base")
-
-    async def async_update(self) -> None:
-        await self.coordinator.api.send_command(self._device_id, "update")
+        await self.coordinator.api.send_action(
+            self._device_id, INTERFACE_RETURN_TO_BASE
+        )
+        self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):

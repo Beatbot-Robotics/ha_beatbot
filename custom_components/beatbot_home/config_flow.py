@@ -24,17 +24,20 @@ from .iot.const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def _decode_access_token_sub(access_token: str) -> str | None:
-    """Extract the `sub` claim from a JWT access token without signature checks."""
+def _decode_access_token(access_token: str) -> dict[str, Any] | None:
+    """Decode a JWT access token without signature checks.
+
+    Returns the claims dict, or None if the token is not a decodable JWT.
+    Used to pull the `sub` (config entry unique id) and the custom `region`
+    claim (selects the resource API base URL) from the token.
+    """
     try:
-        decoded = jwt.decode(
+        return jwt.decode(
             access_token,
             options={"verify_signature": False, "verify_aud": False},
         )
     except jwt.PyJWTError:
         return None
-    sub = decoded.get("sub")
-    return str(sub) if sub is not None else None
 
 
 class BeatbotOAuth2Implementation(
@@ -113,11 +116,17 @@ class BeatbotConfigFlow(
     async def async_oauth_create_entry(
         self, data: dict
     ) -> config_entries.ConfigFlowResult:
-        """Create the config entry, using the JWT `sub` as unique id."""
+        """Create the config entry, using the JWT `sub` as unique id.
+
+        Also extracts the custom `region` claim and stores it on the entry so
+        the API client can pick the resource base URL per region.
+        """
         access_token = (data.get("token") or {}).get("access_token")
-        if access_token:
-            if sub := _decode_access_token_sub(access_token):
-                await self.async_set_unique_id(sub)
+        if access_token and (claims := _decode_access_token(access_token)):
+            if sub := claims.get("sub"):
+                await self.async_set_unique_id(str(sub))
+            if region := claims.get("region"):
+                data["region"] = str(region)
         if self.source == SOURCE_REAUTH:
             self._abort_if_unique_id_mismatch()
             return self.async_update_reload_and_abort(
