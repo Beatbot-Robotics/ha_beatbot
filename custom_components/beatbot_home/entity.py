@@ -8,9 +8,13 @@ first or fail to load.
 """
 from __future__ import annotations
 
+from typing import Any
+
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import BeatbotAuthError, BeatbotConnectionError
 from .coordinator import BeatbotCoordinator
 from .iot.const import DOMAIN
 from .models import BeatbotDeviceData
@@ -28,6 +32,35 @@ class BeatbotEntity(CoordinatorEntity):
     @property
     def data(self) -> BeatbotDeviceData:
         return self.coordinator.data[self._device_id]
+
+    async def _async_send_command(self, coro: Any) -> None:
+        """Run a control API call with HA-idiomatic error translation.
+
+        - Auth failure escalates to ConfigEntryAuthFailed so HA triggers the
+          reauth flow — consistent with the coordinator's poll path. A raw
+          BeatbotAuthError from a service call would otherwise just fail the
+          call with no prompt to re-login.
+        - Connection/transport failure surfaces as HomeAssistantError so the
+          user sees a readable message instead of an opaque stack.
+
+        No retry: the backend returns a synchronous Result envelope, so a
+        failed request means the action likely did not apply (or the response
+        was lost). Blindly retrying toggle-semantics actions (start/pause)
+        risks double execution. State reconciliation is left to the
+        post-control refresh and the 30s poll.
+        """
+        if not self.data.is_online:
+            raise HomeAssistantError(
+                f"{self.data.name or self._device_id} is offline"
+            )
+        try:
+            await coro
+        except BeatbotAuthError as err:
+            raise ConfigEntryAuthFailed from err
+        except BeatbotConnectionError as err:
+            raise HomeAssistantError(
+                f"Failed to control {self.data.name or self._device_id}: {err}"
+            ) from err
 
     @property
     def device_info(self) -> DeviceInfo:

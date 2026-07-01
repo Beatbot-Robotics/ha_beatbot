@@ -16,6 +16,8 @@ import json
 import logging
 from typing import Any
 
+from aiohttp import ClientTimeout
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_entry_oauth2_flow
@@ -25,6 +27,7 @@ from .iot.const import (
     BEATBOT_API_DEVICE_ACTIONS_PATH,
     BEATBOT_API_DEVICES_PATH,
     BEATBOT_API_DEVICE_STATES_PATH,
+    BEATBOT_HOME_HTTP_API_TIMEOUT,
     DEV_MODE,
     INTERFACE_WORK_MODE,
     REGION_API_BASE_URL,
@@ -73,7 +76,8 @@ class BeatbotAPI:
         url = f"{self._base_url}{path}"
         try:
             resp = await self._session.async_request(
-                method, url, params=params, json=json_body
+                method, url, params=params, json=json_body,
+                timeout=ClientTimeout(total=BEATBOT_HOME_HTTP_API_TIMEOUT),
             )
         except Exception as err:
             raise BeatbotConnectionError(str(err)) from err

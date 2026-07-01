@@ -28,7 +28,7 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
 
     @property
     def available(self) -> bool:
-        return self.data.is_online
+        return self.data.is_online and self.coordinator.last_update_success
 
     @property
     def current_option(self) -> str | None:
@@ -41,7 +41,9 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
                 "Unknown work mode %r for %s; ignoring", option, self._device_id
             )
             return
-        await self.coordinator.api.set_work_mode(self._device_id, option)
+        await self._async_send_command(
+            self.coordinator.api.set_work_mode(self._device_id, option)
+        )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
 

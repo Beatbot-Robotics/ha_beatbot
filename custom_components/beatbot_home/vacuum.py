@@ -52,19 +52,25 @@ class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
 
     @property
     def available(self) -> bool:
-        return self.data.is_online
+        return self.data.is_online and self.coordinator.last_update_success
 
     async def async_start(self) -> None:
-        await self.coordinator.api.send_action(self._device_id, INTERFACE_START)
+        await self._async_send_command(
+            self.coordinator.api.send_action(self._device_id, INTERFACE_START)
+        )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
     async def async_pause(self) -> None:
-        await self.coordinator.api.send_action(self._device_id, INTERFACE_PAUSE)
+        await self._async_send_command(
+            self.coordinator.api.send_action(self._device_id, INTERFACE_PAUSE)
+        )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
     async def async_return_to_base(self) -> None:
-        await self.coordinator.api.send_action(
-            self._device_id, INTERFACE_RETURN_TO_BASE
+        await self._async_send_command(
+            self.coordinator.api.send_action(
+                self._device_id, INTERFACE_RETURN_TO_BASE
+            )
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
