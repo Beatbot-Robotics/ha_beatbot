@@ -35,7 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = config_entry_oauth2_flow.OAuth2Session(hass, entry, implementation)
 
     api = BeatbotAPI(hass, entry, session)
-    coordinator = BeatbotCoordinator(hass, api)
+    coordinator = BeatbotCoordinator(hass, api, entry)
 
     await coordinator.async_config_entry_first_refresh()
 

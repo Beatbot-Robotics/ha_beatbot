@@ -77,7 +77,7 @@ class BeatbotEntity(CoordinatorEntity):
             identifiers={(DOMAIN, self._device_id)},
             name=self.data.name or None,
             manufacturer="Beatbot",
-            model=self.data.model or self.data.product_id,
+            model=self.data.product_id,
             # Show each firmware channel's version distinctly (e.g.
             # "ch1:0.0.80 ch2:0.0.80") rather than collapsing to one value.
             sw_version=" ".join(

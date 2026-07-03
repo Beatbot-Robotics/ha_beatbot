@@ -36,6 +36,8 @@ class BeatbotDeviceData:
     battery_level: int
     versions: list[FirmwareVersion]
     is_online: bool
+    child_lock: bool = False
+    voice_disturb: bool = False
     name: str = ""
     model: str = ""
     # Per-device work-mode map parsed from the `select.work_mode` capability

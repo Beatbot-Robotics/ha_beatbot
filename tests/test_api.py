@@ -6,12 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from custom_components.beatbot_home import api as api_mod
-from custom_components.beatbot_home.api import BeatbotAPI
-from custom_components.beatbot_home.iot.const import (
-    BEATBOT_API_BASE_URL,
-    REGION_API_BASE_URL,
-)
+from custom_components.beatbot.api import BeatbotAPI
+from custom_components.beatbot.iot.const import REGION_API_BASE_URL
 
 
 def _api_for_region(region: str | None) -> BeatbotAPI:
@@ -29,26 +25,19 @@ def _api_for_region(region: str | None) -> BeatbotAPI:
         ("cn", REGION_API_BASE_URL["cn"]),
         ("na", REGION_API_BASE_URL["na"]),
         ("eu", REGION_API_BASE_URL["eu"]),
-        (None, BEATBOT_API_BASE_URL),        # missing region -> dev fallback
-        ("unknown-region", BEATBOT_API_BASE_URL),  # unmapped region -> fallback
     ],
 )
 def test_api_base_url_resolves_by_region(
-    region: str | None, expected_base: str, monkeypatch
+    region: str, expected_base: str
 ) -> None:
-    """With DEV_MODE off, the base URL follows the token's region claim."""
-    monkeypatch.setattr(api_mod, "DEV_MODE", False)
-
+    """The base URL follows the entry's region claim."""
     api = _api_for_region(region)
 
     assert api._base_url == expected_base
 
 
-@pytest.mark.parametrize("region", ["cn", "na", "eu", None, "unknown"])
-def test_api_dev_mode_forces_local(region: str | None, monkeypatch) -> None:
-    """With DEV_MODE on, the local dev backend is used regardless of region."""
-    monkeypatch.setattr(api_mod, "DEV_MODE", True)
-
-    api = _api_for_region(region)
-
-    assert api._base_url == BEATBOT_API_BASE_URL
+@pytest.mark.parametrize("region", [None, "unknown-region"])
+def test_api_rejects_missing_or_unknown_region(region: str | None) -> None:
+    """A missing or unmapped region raises instead of silently falling back."""
+    with pytest.raises(ValueError):
+        _api_for_region(region)

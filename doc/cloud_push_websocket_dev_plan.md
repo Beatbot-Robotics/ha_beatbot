@@ -85,7 +85,7 @@ apply_state(device, {"vacuum.state": 5}, is_online=None)
 
 - poll 路径：`BeatbotAuthError → ConfigEntryAuthFailed`，`BeatbotConnectionError → UpdateFailed`（保留上次数据）。
 - 命令路径：`_async_send_command`（`entity.py`）统一 `BeatbotAuthError → ConfigEntryAuthFailed`、`BeatbotConnectionError → HomeAssistantError`，并前置 `is_online` guard。
-- HTTP 请求 30s 超时（`BEATBOT_HOME_HTTP_API_TIMEOUT` + `aiohttp.ClientTimeout`）。
+- HTTP 请求 30s 超时（`BEATBOT_HTTP_API_TIMEOUT` + `aiohttp.ClientTimeout`）。
 - event 通道的错误处理走同一套语义（见 §6）。
 
 ### 2.6 post-control refresh
@@ -99,7 +99,7 @@ apply_state(device, {"vacuum.state": 5}, is_online=None)
 
 ### 3.1 模块划分
 
-新增 `custom_components/beatbot_home/iot/event_stream.py`，封装一条长连接 WS：
+新增 `custom_components/beatbot/iot/event_stream.py`，封装一条长连接 WS：
 
 ```
 event_stream.py

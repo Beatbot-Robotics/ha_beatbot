@@ -6,12 +6,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from custom_components.beatbot_home.binary_sensor import BeatbotChargingSensor
-from custom_components.beatbot_home.iot.category import (
+from custom_components.beatbot.binary_sensor import BeatbotChargingSensor
+from custom_components.beatbot.iot.category import (
     CATEGORY_MAP,
     CHARGING_STATUS_CODES_BY_CATEGORY,
 )
-from custom_components.beatbot_home.models import BeatbotDeviceData
+from custom_components.beatbot.models import BeatbotDeviceData
 
 DEVICE_ID = "test-device-1"
 POOL_CODES = CHARGING_STATUS_CODES_BY_CATEGORY[
@@ -59,3 +59,10 @@ def test_charging_sensor_offline_unavailable() -> None:
     )
 
     assert sensor.available is False
+
+
+def test_clean_base_station_has_no_charging_state() -> None:
+    """The station itself cannot charge and must not get a charging entity."""
+    category = CATEGORY_MAP["clean_base_station"]
+
+    assert CHARGING_STATUS_CODES_BY_CATEGORY[category] == set()

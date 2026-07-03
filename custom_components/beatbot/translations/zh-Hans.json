@@ -39,6 +39,9 @@
       "beatbot_pool_vacuum": {
         "name": "泳池清洁机器人"
       },
+      "beatbot_clean_base_station_vacuum": {
+        "name": "清洁基站"
+      },
       "beatbot_lawn_mower_vacuum": {
         "name": "割草机器人"
       }
@@ -65,6 +68,9 @@
           "dock": "一键靠岸",
           "finish_connect": "连接完成",
           "self_cleaning": "自清洁中",
+          "uncheck": "未自检",
+          "self_checking": "自检中",
+          "check_down": "自检完成",
           "replenish_energy": "补能中",
           "chase_light": "追光中",
           "dock_done": "靠岸完成"
@@ -102,13 +108,59 @@
           "charge_high_temperature": "充电高温",
           "charge_low_temperature": "充电低温",
           "motor_thruster": "推进电机",
-          "platform_clean_err": "平台清洁异常"
+          "platform_clean_err": "平台清洁异常",
+          "self_err_spray": "自检喷头异常",
+          "self_err_lever": "自检拨杆异常",
+          "self_err_pusher": "自检推杆异常",
+          "self_err_clean_conflict": "自检清洁冲突",
+          "err_dust_not_install": "基站尘盒未安装",
+          "notice_self_not_paired": "主机基站蓝牙连接异常",
+          "notice_self_base_dust": "自检基站尘盒未安装",
+          "notice_self_temp_low": "自检环境温度低",
+          "notice_self_robot_not_comm": "自清洁基站未收到主机消息",
+          "notice_self_robot_not_pos": "主机未到清洁位",
+          "notice_self_robot_dust": "主机尘盒未安装",
+          "notice_clean_closed_dust": "清洁过程无法关闭主机底部尘盒",
+          "notice_clean_spray_not_pos": "喷头未到既定位置",
+          "notice_clean_opend_dust": "清洁过程无法打开主机底部尘盒",
+          "notice_clean_comm": "清洁过程中主机基站通讯异常",
+          "notice_clean_robot_not_pos": "清洁过程中主机不在清洁位",
+          "notice_clean_base_dust": "清洁过程中基站尘盒不在位",
+          "notice_clean_spray_leave_pos": "清洁过程中喷头离开既定清洁位",
+          "notice_clean_user_end_early": "用户提前结束自清洁任务",
+          "notice_cleaned_spray_not_reset": "清洁结束喷头无法复位",
+          "notice_cleaned_lever_not_reset": "清洁结束拨杆无法复位",
+          "notice_clean_drain_pump_empty": "排水泵触发空转保护",
+          "notice_cln_robot_dust_not_pos": "清洁过程中主机尘盒未安装",
+          "notice_clean_lever_not_reset": "清洁过程中拨杆无法复位",
+          "notice_clean_done_normal": "正常清洁完成"
         }
       }
     },
     "select": {
       "work_mode": {
-        "name": "工作模式"
+        "name": "工作模式",
+        "state": {
+          "daily": "日常",
+          "fast": "快速模式",
+          "surface": "水面模式",
+          "custom": "自定义模式",
+          "standard": "标准模式",
+          "pro": "Pro模式",
+          "cec": "低功耗模式",
+          "multi": "多平台模式",
+          "ai": "AI模式",
+          "platform": "晒台模式",
+          "wall": "池壁模式"
+        }
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "童锁"
+      },
+      "voice_disturb": {
+        "name": "语音免打扰"
       }
     },
     "binary_sensor": {

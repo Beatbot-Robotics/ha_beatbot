@@ -9,6 +9,7 @@ from .iot.category import (
     CATEGORY_MAP,
     ProductCategory,
     STATUS_MAP_BY_CATEGORY,
+    VACUUM_ERROR_MASK_BY_CATEGORY,
     VACUUM_FEATURES_BY_CATEGORY,
     vacuum_features_from_capabilities,
 )
@@ -23,6 +24,7 @@ from .coordinator import BeatbotCoordinator
 
 VACUUM_TRANSLATION_KEYS = {
     ProductCategory.POOL_CLEAN_BOT: "beatbot_pool_vacuum",
+    ProductCategory.CLEAN_BASE_STATION: "beatbot_clean_base_station_vacuum",
     ProductCategory.LAWN_MOWER: "beatbot_lawn_mower_vacuum",
 }
 
@@ -40,10 +42,8 @@ class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
         )
         if translation_key := VACUUM_TRANSLATION_KEYS.get(category):
             self._attr_translation_key = translation_key
-        # Derive features from the device's advertised capabilities when the
-        # backend reports them (so a model that omits e.g. vacuum.start does
-        # not get a non-functional Start button). Fall back to the static
-        # category map only when no capabilities are advertised at all.
+        # Actions are exposed only when explicitly advertised by the device.
+        # Devices without vacuum action capabilities remain STATE-only.
         features = vacuum_features_from_capabilities(self.data.capabilities)
         if features is None:
             features = VACUUM_FEATURES_BY_CATEGORY.get(
@@ -51,10 +51,13 @@ class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
             )
         self._attr_supported_features = features
         self._status_map = STATUS_MAP_BY_CATEGORY.get(category, {})
+        # Preserve the legacy "any non-zero code is an error" behavior for
+        # categories that do not yet define a bit map.
+        self._error_mask = VACUUM_ERROR_MASK_BY_CATEGORY.get(category, -1)
 
     @property
     def activity(self) -> VacuumActivity:
-        if self.data.error_code != 0:
+        if self.data.error_code & self._error_mask:
             return VacuumActivity.ERROR
         return self._status_map.get(self.data.work_status, VacuumActivity.IDLE)
 

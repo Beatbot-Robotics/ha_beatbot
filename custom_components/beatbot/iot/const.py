@@ -5,12 +5,14 @@ DEFAULT_NICK_NAME: str = 'Beatbot'
 
 BEATBOT_HTTP_API_TIMEOUT: int = 30
 
-NETWORK_REFRESH_INTERVAL: int = 30
+# WebSocket events provide real-time state changes. Keep a low-frequency full
+# refresh for discovery and reconciliation when an event is missed.
+NETWORK_REFRESH_INTERVAL: int = 1 * 60
 
 # Seconds to wait after a control command before fetching the single-device
 # state. The device does not report the new state the instant the action is
 # issued, so reading immediately can return the previous value.
-POST_CONTROL_REFRESH_DELAY: int = 3
+POST_CONTROL_REFRESH_DELAY: int = 5
 
 OAUTH2_CLIENT_ID: str = 'home-assistant'
 OAUTH2_AUTHORIZE_URL: str = 'https://oauth-test.beatbot.com/oauth2/authorize'
@@ -26,10 +28,11 @@ SUPPORTED_PLATFORMS: list = [
     'binary_sensor',
     'select',
     'sensor',
+    'switch',
     'vacuum',
 ]
 
-SUPPORTED_PRODUCT_CATEGORIES: set[str] = {'pool_clean_bot'}
+SUPPORTED_PRODUCT_CATEGORIES: set[str] = {'pool_clean_bot','clean_base_station'}
 
 SUPPORTED_PRODUCT_IDS: set[str] = {
     'sblekiy3t188s9ql',
@@ -103,6 +106,8 @@ INTERFACE_VACUUM_STATE: str = 'vacuum.state'
 INTERFACE_VACUUM_BATTERY: str = 'vacuum.battery'
 INTERFACE_WORK_MODE: str = 'select.work_mode'
 INTERFACE_SENSOR_ERROR: str = 'sensor.error'
+INTERFACE_CHILD_LOCK: str = 'switch.child_lock'
+INTERFACE_VOICE_DISTURB: str = 'switch.voice_disturb'
 INTERFACE_RETURN_TO_BASE: str = 'vacuum.return_to_base'
 INTERFACE_START: str = 'vacuum.start'
 INTERFACE_PAUSE: str = 'vacuum.pause'

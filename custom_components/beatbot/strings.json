@@ -39,6 +39,9 @@
       "beatbot_pool_vacuum": {
         "name": "Pool Cleaner"
       },
+      "beatbot_clean_base_station_vacuum": {
+        "name": "Cleaning Base Station"
+      },
       "beatbot_lawn_mower_vacuum": {
         "name": "Lawn Mower"
       }
@@ -65,6 +68,9 @@
           "dock": "Dock",
           "finish_connect": "Connected",
           "self_cleaning": "Self cleaning",
+          "uncheck": "Not checked",
+          "self_checking": "Self-checking",
+          "check_down": "Self-check complete",
           "replenish_energy": "Replenishing energy",
           "chase_light": "Chasing light",
           "dock_done": "Dock done"
@@ -102,13 +108,59 @@
           "charge_high_temperature": "Charging high temp",
           "charge_low_temperature": "Charging low temp",
           "motor_thruster": "Thruster motor",
-          "platform_clean_err": "Platform clean error"
+          "platform_clean_err": "Platform clean error",
+          "self_err_spray": "Self-check spray head error",
+          "self_err_lever": "Self-check lever error",
+          "self_err_pusher": "Self-check pusher error",
+          "self_err_clean_conflict": "Self-check cleaning conflict",
+          "err_dust_not_install": "Base station dust box not installed",
+          "notice_self_not_paired": "Robot and base station Bluetooth connection error",
+          "notice_self_base_dust": "Base station dust box not installed during self-check",
+          "notice_self_temp_low": "Low ambient temperature during self-check",
+          "notice_self_robot_not_comm": "Base station did not receive a message from the robot",
+          "notice_self_robot_not_pos": "Robot is not in the cleaning position",
+          "notice_self_robot_dust": "Robot dust box not installed",
+          "notice_clean_closed_dust": "Unable to close the robot bottom dust box during cleaning",
+          "notice_clean_spray_not_pos": "Spray head did not reach the required position",
+          "notice_clean_opend_dust": "Unable to open the robot bottom dust box during cleaning",
+          "notice_clean_comm": "Robot and base station communication error during cleaning",
+          "notice_clean_robot_not_pos": "Robot left the cleaning position during cleaning",
+          "notice_clean_base_dust": "Base station dust box is not in position during cleaning",
+          "notice_clean_spray_leave_pos": "Spray head left the required cleaning position",
+          "notice_clean_user_end_early": "Self-cleaning ended early by user",
+          "notice_cleaned_spray_not_reset": "Spray head could not reset after cleaning",
+          "notice_cleaned_lever_not_reset": "Lever could not reset after cleaning",
+          "notice_clean_drain_pump_empty": "Drain pump dry-run protection activated",
+          "notice_cln_robot_dust_not_pos": "Robot dust box not installed during cleaning",
+          "notice_clean_lever_not_reset": "Lever could not reset during cleaning",
+          "notice_clean_done_normal": "Cleaning completed normally"
         }
       }
     },
     "select": {
       "work_mode": {
-        "name": "Work mode"
+        "name": "Work mode",
+        "state": {
+          "daily": "Daily",
+          "fast": "Fast mode",
+          "surface": "Surface mode",
+          "custom": "Custom mode",
+          "standard": "Standard mode",
+          "pro": "Pro mode",
+          "cec": "Low power mode",
+          "multi": "Multi-platform mode",
+          "ai": "AI mode",
+          "platform": "Sun shelf mode",
+          "wall": "Wall mode"
+        }
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "Child lock"
+      },
+      "voice_disturb": {
+        "name": "Voice do not disturb"
       }
     },
     "binary_sensor": {

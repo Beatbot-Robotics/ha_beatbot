@@ -36,7 +36,7 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Set the device work mode."""
-        if (value := self._option_to_value.get(option)) is None:
+        if option not in self._option_to_value:
             _LOGGER.warning(
                 "Unknown work mode %r for %s; ignoring", option, self._device_id
             )

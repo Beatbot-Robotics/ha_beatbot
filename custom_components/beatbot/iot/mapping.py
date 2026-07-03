@@ -19,6 +19,8 @@ HA_STATE_FIELD_MAP: dict[str, str] = {
     "vacuum.battery": "battery_level",
     "sensor.error": "error_code",
     "select.work_mode": "work_mode",
+    "switch.child_lock": "child_lock",
+    "switch.voice_disturb": "voice_disturb",
 }
 
 

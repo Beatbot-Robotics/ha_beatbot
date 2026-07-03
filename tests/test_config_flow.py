@@ -1,4 +1,4 @@
-"""Tests for the Beatbot Home OAuth2 config flow (incl. reauth)."""
+"""Tests for the Beatbot OAuth2 config flow (incl. reauth)."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ from homeassistant.helpers.config_entry_oauth2_flow import (
 )
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.beatbot_home.iot.const import DOMAIN
+from custom_components.beatbot.iot.const import DOMAIN
 
-REDIRECT_URI = "http://localhost:8123/auth/external/callback"
+REDIRECT_URI = "http://example.com/auth/external/callback"
 
 
 def _make_token(sub: str, *, nonce: str = "v1", region: str | None = None) -> dict:
@@ -52,7 +52,7 @@ class _MockOAuth2Implementation(AbstractOAuth2Implementation):
         return DOMAIN
 
     async def async_generate_authorize_url(self, flow_id: str) -> str:
-        return "http://example.com/oauth2/authorize"
+        return "https://oauth.beatbot.com/oauth2/authorize"
 
     async def async_resolve_external_data(self, external_data) -> dict:
         return self._token
@@ -83,7 +83,7 @@ async def _complete_external_auth(hass: HomeAssistant, flow_id: str) -> dict:
 @pytest.mark.usefixtures("enable_custom_integrations")
 async def test_user_flow_creates_entry_with_jwt_sub_unique_id(hass: HomeAssistant) -> None:
     """Initial user flow creates one entry with unique_id = JWT `sub`."""
-    _register_mock_impl(hass, _make_token("account-1"))
+    _register_mock_impl(hass, _make_token("account-1", region="cn"))
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_USER}
@@ -103,7 +103,7 @@ async def test_user_flow_creates_entry_with_jwt_sub_unique_id(hass: HomeAssistan
     entries = hass.config_entries.async_entries(DOMAIN)
     assert len(entries) == 1
     assert entries[0].unique_id == "account-1"
-    assert entries[0].title == "Beatbot Home"
+    assert entries[0].title == "Beatbot"
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
@@ -125,13 +125,49 @@ async def test_user_flow_stores_region_from_token(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
+async def test_user_flow_aborts_unknown_region(hass: HomeAssistant) -> None:
+    """A token whose region is not in the known map aborts with unknown_region."""
+    _register_mock_impl(hass, _make_token("account-1", region="zz"))
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"implementation": DOMAIN}
+    )
+    result = await _complete_external_auth(hass, result["flow_id"])
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unknown_region"
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 0
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_user_flow_aborts_missing_region(hass: HomeAssistant) -> None:
+    """A token with no region claim aborts with unknown_region (no fallback)."""
+    _register_mock_impl(hass, _make_token("account-1"))
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"implementation": DOMAIN}
+    )
+    result = await _complete_external_auth(hass, result["flow_id"])
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unknown_region"
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 0
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
 async def test_reauth_updates_existing_entry_not_duplicate(hass: HomeAssistant) -> None:
     """Reauth with the same account updates the existing entry (no new entry)."""
     original_token = _make_token("account-1", nonce="old")
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="account-1",
-        title="Beatbot Home",
+        title="Beatbot",
         source=SOURCE_USER,
         data={"auth_implementation": DOMAIN, "token": original_token},
     )
@@ -185,7 +221,7 @@ async def test_reauth_different_account_aborts_unique_id_mismatch(
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="account-1",
-        title="Beatbot Home",
+        title="Beatbot",
         source=SOURCE_USER,
         data={"auth_implementation": DOMAIN, "token": _make_token("account-1")},
     )

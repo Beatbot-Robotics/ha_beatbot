@@ -15,10 +15,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from ..api import BeatbotAPI
 from ..coordinator import BeatbotCoordinator
 from .const import (
+    DOMAIN,
     EVENT_DEDUP_CACHE_SIZE,
     EVENT_HEARTBEAT_INTERVAL,
     EVENT_HEARTBEAT_TIMEOUT,
@@ -64,7 +67,9 @@ class BeatbotEventClient:
         self._stopping = False
         self._token_refresh_lock = asyncio.Lock()
         self._handshake_refresh_attempted = False
+        self._has_connected = False
         self._seen_event_ids: OrderedDict[str, None] = OrderedDict()
+        self._reload_scheduled = False
 
     def async_start(self) -> None:
         """Start the connection supervisor without blocking setup."""
@@ -174,9 +179,21 @@ class BeatbotEventClient:
                 # accepted. A future handshake 401 may therefore use one new
                 # refresh attempt.
                 self._handshake_refresh_attempted = False
-                _LOGGER.debug("Connected to Beatbot event stream")
+                is_reconnect = self._has_connected
+                self._has_connected = True
+                _LOGGER.debug(
+                    "Connected to Beatbot event stream at %s", self._api.event_stream_url
+                )
+                if is_reconnect:
+                    # Events may have been lost while disconnected. Reconcile
+                    # discovery and all runtime state before consuming further
+                    # incremental updates.
+                    await self._coordinator.async_request_refresh()
                 while not self._stopping:
                     message = await ws.receive(timeout=EVENT_HEARTBEAT_TIMEOUT)
+                    _LOGGER.debug(
+                        "WS received message type=%s data=%r", message.type, message.data
+                    )
                     if message.type is WSMsgType.TEXT:
                         self._handle_text_message(message.data)
                     elif message.type in (
@@ -230,13 +247,18 @@ class BeatbotEventClient:
             payload = event.get("payload")
             if not all(isinstance(value, str) and value for value in (
                 event_id, event_type, device_id
-            )) or not isinstance(payload, dict):
-                raise ValueError("missing eventId, type, deviceId, or payload")
+            )):
+                raise ValueError("missing eventId, type, or deviceId")
+            if event_type == "device_removed":
+                if payload is not None:
+                    raise ValueError("device_removed payload is not null")
+            elif not isinstance(payload, dict):
+                raise ValueError("event payload is not an object")
 
             if event_id in self._seen_event_ids:
                 return
             self._remember_event(event_id)
-            _LOGGER.debug(
+            _LOGGER.info(
                 "Received Beatbot event eventId=%s deviceId=%s type=%s",
                 event_id,
                 device_id,
@@ -257,10 +279,53 @@ class BeatbotEventClient:
                 self._coordinator.async_apply_device_event(
                     device_id, None, is_online=online
                 )
+            elif event_type == "device_added":
+                payload_device_id = payload.get("deviceId")
+                if payload_device_id != device_id:
+                    raise ValueError(
+                        "device_added payload deviceId does not match event deviceId"
+                    )
+                self._schedule_entry_reload()
+            elif event_type == "device_removed":
+                self._remove_device_from_registries(device_id)
+                self._schedule_entry_reload()
             else:
                 _LOGGER.debug("Ignoring unknown Beatbot event type %s", event_type)
         except (json.JSONDecodeError, ValueError, TypeError) as err:
             _LOGGER.warning("Ignoring malformed Beatbot event: %s", err)
+
+    def _schedule_entry_reload(self) -> None:
+        """Reload all platforms after the account's device set changes."""
+        if self._reload_scheduled or self._stopping:
+            return
+        self._reload_scheduled = True
+
+        async def _reload() -> None:
+            try:
+                await self._hass.config_entries.async_reload(self._entry.entry_id)
+            finally:
+                self._reload_scheduled = False
+
+        self._hass.async_create_task(
+            _reload(), f"beatbot_reload_{self._entry.entry_id}"
+        )
+
+    def _remove_device_from_registries(self, device_id: str) -> None:
+        """Remove entities and the device registry entry after account removal."""
+        device_registry = dr.async_get(self._hass)
+        device = device_registry.async_get_device(
+            identifiers={(DOMAIN, device_id)}
+        )
+        if device is None:
+            return
+
+        entity_registry = er.async_get(self._hass)
+        for entity in er.async_entries_for_device(
+            entity_registry, device.id, include_disabled_entities=True
+        ):
+            if entity.config_entry_id == self._entry.entry_id:
+                entity_registry.async_remove(entity.entity_id)
+        device_registry.async_remove_device(device.id)
 
     def _remember_event(self, event_id: str) -> None:
         self._seen_event_ids[event_id] = None

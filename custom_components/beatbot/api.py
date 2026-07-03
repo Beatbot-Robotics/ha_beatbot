@@ -314,3 +314,16 @@ class BeatbotAPI:
                 "label": label,
             },
         )
+
+    async def set_switch(
+        self, device_id: str, interface_info: str, label: str
+    ) -> None:
+        """Set an on/off switch capability."""
+        await self._request(
+            "POST",
+            f"{BEATBOT_API_DEVICE_ACTIONS_PATH}/{device_id}/actions",
+            json_body={
+                "interfaceInfo": interface_info,
+                "label": label,
+            },
+        )

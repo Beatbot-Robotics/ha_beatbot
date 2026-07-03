@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.beatbot_home.models import BeatbotDeviceData
-from custom_components.beatbot_home.select import BeatbotWorkModeSelect
+from custom_components.beatbot.models import BeatbotDeviceData
+from custom_components.beatbot.select import BeatbotWorkModeSelect
 
 DEVICE_ID = "test-device-1"
 

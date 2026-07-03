@@ -13,24 +13,17 @@ from .const import (
 
 class ProductCategory(StrEnum):
     POOL_CLEAN_BOT = "pool_clean_bot"
+    CLEAN_BASE_STATION = "clean_base_station"
     LAWN_MOWER = "lawn_mower"
 
 
 CATEGORY_MAP: dict[str, ProductCategory] = {
-    # Backend reports productCategory in lowercase snake_case, e.g.
-    # "pool_clean_bot". Uppercase aliases are kept as a fallback.
     "pool_clean_bot": ProductCategory.POOL_CLEAN_BOT,
-    "POOL_CLEAN_BOT": ProductCategory.POOL_CLEAN_BOT,
-    "VACUUM_CLEANER": ProductCategory.POOL_CLEAN_BOT,
-    "POOL_CLEANER": ProductCategory.POOL_CLEAN_BOT,
+    "clean_base_station": ProductCategory.CLEAN_BASE_STATION,
     "lawn_mower": ProductCategory.LAWN_MOWER,
-    "LAWN_MOWER": ProductCategory.LAWN_MOWER,
-    "MOWER": ProductCategory.LAWN_MOWER,
 }
 
-
 STATUS_MAP_BY_CATEGORY: dict[ProductCategory, dict[int, VacuumActivity]] = {
-    # VacuumActivity 的银蛇
     ProductCategory.POOL_CLEAN_BOT: {
         0: VacuumActivity.IDLE,
         1: VacuumActivity.RETURNING,
@@ -54,6 +47,14 @@ STATUS_MAP_BY_CATEGORY: dict[ProductCategory, dict[int, VacuumActivity]] = {
         19: VacuumActivity.CLEANING,
         20: VacuumActivity.DOCKED,
     },
+    ProductCategory.CLEAN_BASE_STATION: {
+        0: VacuumActivity.CLEANING,
+        1: VacuumActivity.CLEANING,
+        2: VacuumActivity.IDLE,
+        3: VacuumActivity.IDLE,
+        4: VacuumActivity.PAUSED,
+        5: VacuumActivity.PAUSED,
+    },
     ProductCategory.LAWN_MOWER: {}
 }
 
@@ -63,8 +64,17 @@ STATUS_MAP_BY_CATEGORY: dict[ProductCategory, dict[int, VacuumActivity]] = {
 # Keep in sync with STATUS_DISPLAY_MAP_BY_CATEGORY above.
 CHARGING_STATUS_CODES_BY_CATEGORY: dict[ProductCategory, set[int]] = {
     ProductCategory.POOL_CLEAN_BOT: {2},
+    ProductCategory.CLEAN_BASE_STATION: set(),
     ProductCategory.LAWN_MOWER: set(),
 }
+
+# Categories whose devices have their own battery. A clean base station may
+# report that the paired robot is charging in its work status, but the station
+# itself has neither a battery nor a charging state.
+BATTERY_CATEGORIES: frozenset[ProductCategory] = frozenset({
+    ProductCategory.POOL_CLEAN_BOT,
+    ProductCategory.LAWN_MOWER,
+})
 
 # Sensor-facing display states: raw `work_status` code -> translation slug.
 # This is deliberately separate from STATUS_MAP_BY_CATEGORY above, which
@@ -98,6 +108,13 @@ STATUS_DISPLAY_MAP_BY_CATEGORY: dict[ProductCategory, dict[int, str]] = {
         19: "chase_light",
         20: "dock_done",
     },
+    ProductCategory.CLEAN_BASE_STATION: {
+        1: "cleaning",
+        2: "standby",
+        3: "uncheck",
+        4: "self_checking",
+        5: "check_down",
+    },
     ProductCategory.LAWN_MOWER: {},
 }
 
@@ -127,33 +144,68 @@ ERROR_BITS_BY_CATEGORY: dict[ProductCategory, list[tuple[str, int]]] = {
         ("motor_thruster", 1 << 21),
         ("platform_clean_err", 1 << 22),
     ],
+    ProductCategory.CLEAN_BASE_STATION: [
+        ("self_err_spray", 1 << 0),
+        ("self_err_lever", 1 << 1),
+        ("self_err_pusher", 1 << 2),
+        ("self_err_clean_conflict", 1 << 3),
+        ("err_dust_not_install", 1 << 4),
+        ("notice_self_not_paired", 1 << 5),
+        ("notice_self_base_dust", 1 << 6),
+        ("notice_self_temp_low", 1 << 7),
+        ("notice_self_robot_not_comm", 1 << 8),
+        ("notice_self_robot_not_pos", 1 << 9),
+        ("notice_self_robot_dust", 1 << 10),
+        ("notice_clean_closed_dust", 1 << 11),
+        ("notice_clean_spray_not_pos", 1 << 12),
+        ("notice_clean_opend_dust", 1 << 13),
+        ("notice_clean_comm", 1 << 14),
+        ("notice_clean_robot_not_pos", 1 << 15),
+        ("notice_clean_base_dust", 1 << 16),
+        ("notice_clean_spray_leave_pos", 1 << 17),
+        ("notice_clean_user_end_early", 1 << 18),
+        ("notice_cleaned_spray_not_reset", 1 << 19),
+        ("notice_cleaned_lever_not_reset", 1 << 20),
+        ("notice_clean_drain_pump_empty", 1 << 21),
+        ("notice_cln_robot_dust_not_pos", 1 << 22),
+        ("notice_clean_lever_not_reset", 1 << 23),
+        ("notice_clean_done_normal", 1 << 24),
+    ],
     ProductCategory.LAWN_MOWER: [
 
     ]
 }
 
+# Bits that should put the vacuum entity into the ERROR activity. Some devices
+# report informational notices through the same `sensor.error` bitmask; those
+# remain available through the error sensor but must not make the vacuum look
+# faulted.
+VACUUM_ERROR_MASK_BY_CATEGORY: dict[ProductCategory, int] = {
+    category: sum(bit for _, bit in bits)
+    for category, bits in ERROR_BITS_BY_CATEGORY.items()
+    if bits
+}
+VACUUM_ERROR_MASK_BY_CATEGORY[ProductCategory.CLEAN_BASE_STATION] = sum(
+    bit
+    for key, bit in ERROR_BITS_BY_CATEGORY[ProductCategory.CLEAN_BASE_STATION]
+    if not key.startswith("notice_")
+)
+
 VACUUM_FEATURES_BY_CATEGORY: dict[ProductCategory, VacuumEntityFeature] = {
-    ProductCategory.POOL_CLEAN_BOT: VacuumEntityFeature.STATE
-                                    | VacuumEntityFeature.START
-                                    | VacuumEntityFeature.PAUSE
-                                    | VacuumEntityFeature.RETURN_HOME,
-    ProductCategory.LAWN_MOWER: VacuumEntityFeature.STATE
-                                | VacuumEntityFeature.START
-                                | VacuumEntityFeature.PAUSE
-                                | VacuumEntityFeature.RETURN_HOME,
+    ProductCategory.POOL_CLEAN_BOT: VacuumEntityFeature.STATE,
+    ProductCategory.CLEAN_BASE_STATION: VacuumEntityFeature.STATE,
+    ProductCategory.LAWN_MOWER: VacuumEntityFeature.STATE,
 }
 
 
 def vacuum_features_from_capabilities(
-    capabilities: dict[str, BeatbotCapability],
+        capabilities: dict[str, BeatbotCapability],
 ) -> VacuumEntityFeature | None:
     """Derive vacuum features from the device's advertised capabilities.
 
     Returns the derived feature set, or `None` when the device advertises no
-    vacuum.* capability at all — in that case the caller should fall back to
-    `VACUUM_FEATURES_BY_CATEGORY` (old firmware / backend that omits the
-    capabilities array, or a device whose capabilities array carries only
-    non-vacuum entries like select.work_mode / sensor.error).
+    vacuum.* capability at all. The caller then falls back to the category's
+    STATE-only feature set. Action features are never inferred from category.
 
     Field semantics (per HaCapabilityDTO / discovery samples):
     - `vacuum.state` with `retrievable=True` -> STATE (activity is reported).
@@ -165,10 +217,7 @@ def vacuum_features_from_capabilities(
     if not capabilities:
         return None
 
-    # A non-empty capabilities array that carries no vacuum.* entry means the
-    # device has no vacuum surface to expose — return None so the caller falls
-    # back to the category feature map instead of getting an inert
-    # supported_features=0 entity.
+    # A capability array with no vacuum.* entry falls back to STATE only.
     vacuum_capability_keys = {
         INTERFACE_VACUUM_STATE,
         INTERFACE_START,

@@ -5,6 +5,7 @@ from homeassistant.helpers import entity_registry as er
 from .entity import BeatbotEntity
 from .iot.const import DOMAIN
 from .iot.category import (
+    BATTERY_CATEGORIES,
     CATEGORY_MAP,
     ERROR_BITS_BY_CATEGORY,
     STATUS_DISPLAY_MAP_BY_CATEGORY,
@@ -23,6 +24,22 @@ def _remove_obsolete_firmware_entity(hass, entry) -> None:
     registry = er.async_get(hass)
     for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
         if reg_entry.domain == "sensor" and (reg_entry.unique_id or "").endswith("_firmware"):
+            registry.async_remove(reg_entry.entity_id)
+
+
+def _remove_unsupported_battery_entities(
+        hass, entry, device_ids: set[str],
+) -> None:
+    """Remove battery entities previously registered for mains-powered devices."""
+    if not device_ids:
+        return
+    obsolete_unique_ids = {f"{device_id}_battery" for device_id in device_ids}
+    registry = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if (
+                reg_entry.domain == "sensor"
+                and reg_entry.unique_id in obsolete_unique_ids
+        ):
             registry.async_remove(reg_entry.entity_id)
 
 
@@ -117,17 +134,24 @@ async def async_setup_entry(hass, entry, async_add_entities):
         return
     coordinator = data["coordinator"]
     _remove_obsolete_firmware_entity(hass, entry)
+    unsupported_battery_device_ids = {
+        device_id
+        for device_id, device in coordinator.data.items()
+        if CATEGORY_MAP.get(device.product_category) not in BATTERY_CATEGORIES
+    }
+    _remove_unsupported_battery_entities(
+        hass, entry, unsupported_battery_device_ids
+    )
     entities = []
     for device_id in coordinator.data:
-        entities.extend([
-            BeatbotStatusSensor(coordinator, device_id),
-            BeatbotBatterySensor(coordinator, device_id),
-        ])
-        # Only expose the decoded error sensor when the device's category
-        # actually has a bit map to decode against.
         category = CATEGORY_MAP.get(
             coordinator.data[device_id].product_category
         )
+        entities.append(BeatbotStatusSensor(coordinator, device_id))
+        if category in BATTERY_CATEGORIES:
+            entities.append(BeatbotBatterySensor(coordinator, device_id))
+        # Only expose the decoded error sensor when the device's category
+        # actually has a bit map to decode against.
         if (bits := ERROR_BITS_BY_CATEGORY.get(category, [])):
             entities.append(BeatbotErrorSensor(coordinator, device_id, bits))
     # for lawn mower add
