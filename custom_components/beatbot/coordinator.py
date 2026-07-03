@@ -2,9 +2,12 @@ import asyncio
 import logging
 from datetime import timedelta
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import BeatbotAPI, BeatbotAuthError, BeatbotConnectionError
 from .iot.category import CATEGORY_MAP
@@ -19,6 +22,7 @@ from .iot.mapping import apply_state
 from .models import BeatbotDeviceData
 
 _LOGGER = logging.getLogger(__name__)
+_MISSING_DEVICE_CONFIRMATIONS = 3
 
 
 class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
@@ -26,19 +30,24 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         self,
         hass: HomeAssistant,
         api: BeatbotAPI,
+        config_entry: ConfigEntry | None = None,
     ) -> None:
         super().__init__(
             hass,
             logger=_LOGGER,
             name=DOMAIN,
             update_interval=timedelta(seconds=NETWORK_REFRESH_INTERVAL),
+            config_entry=config_entry,
         )
         self.api = api
-        # Post-control refresh tasks spawned via async_schedule_device_state_refresh.
-        # Tracked so async_unload_entry can cancel any still-pending refresh before
-        # the coordinator/api/session are torn down (otherwise the detached task
-        # leaks the whole object graph and fires through a closed session).
-        self._refresh_tasks: set[asyncio.Task] = set()
+        self._config_entry = config_entry
+        self._entry_id = config_entry.entry_id if config_entry is not None else None
+        self._missing_device_counts: dict[str, int] = {}
+        self._reload_scheduled = False
+        # One delayed post-control reconciliation task per device. A later
+        # command replaces the pending task for that device (debounce), while
+        # commands for different devices remain independent.
+        self._refresh_tasks: dict[str, asyncio.Task] = {}
 
     async def _async_update_data(self) -> dict[str, BeatbotDeviceData]:
         try:
@@ -93,7 +102,95 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         for device_id, device in result.items():
             if (state := states.get(device_id)) is not None:
                 apply_state(device, state.get("states"), state.get("is_online"))
+        self._reconcile_device_set(result)
         return result
+
+    @callback
+    def _reconcile_device_set(
+        self, result: dict[str, BeatbotDeviceData]
+    ) -> None:
+        """Reconcile successful discovery results with the active device set."""
+        previous_data = self.data if isinstance(self.data, dict) else {}
+        previous_ids = set(previous_data) | self._registered_device_ids()
+        current_ids = set(result)
+        added_ids = current_ids - previous_ids
+        missing_ids = previous_ids - current_ids
+
+        for device_id in current_ids:
+            self._missing_device_counts.pop(device_id, None)
+
+        confirmed_removed: set[str] = set()
+        for device_id in missing_ids:
+            count = self._missing_device_counts.get(device_id, 0) + 1
+            self._missing_device_counts[device_id] = count
+            if count >= _MISSING_DEVICE_CONFIRMATIONS:
+                confirmed_removed.add(device_id)
+            elif device_id in previous_data:
+                # Keep the last-known device until absence is confirmed. This
+                # prevents entity callbacks from reading a missing data key.
+                result[device_id] = previous_data[device_id]
+
+        for device_id in confirmed_removed:
+            # Keep it alive until reload unloads the existing platform entities.
+            if device_id in previous_data:
+                result[device_id] = previous_data[device_id]
+            self._remove_device_from_registries(device_id)
+            self._missing_device_counts.pop(device_id, None)
+
+        if added_ids or confirmed_removed:
+            _LOGGER.info(
+                "Device discovery changed; added=%s removed=%s",
+                sorted(added_ids),
+                sorted(confirmed_removed),
+            )
+            self._schedule_entry_reload()
+
+    @callback
+    def _registered_device_ids(self) -> set[str]:
+        """Return Beatbot device IDs still associated with this config entry."""
+        if self._entry_id is None:
+            return set()
+        registry = dr.async_get(self.hass)
+        device_ids: set[str] = set()
+        for device in dr.async_entries_for_config_entry(registry, self._entry_id):
+            for domain, identifier in device.identifiers:
+                if domain == DOMAIN:
+                    device_ids.add(identifier)
+        return device_ids
+
+    @callback
+    def _remove_device_from_registries(self, device_id: str) -> None:
+        """Remove one confirmed-absent device and all of its entities."""
+        if self._entry_id is None:
+            return
+        device_registry = dr.async_get(self.hass)
+        device = device_registry.async_get_device(identifiers={(DOMAIN, device_id)})
+        if device is None:
+            return
+        entity_registry = er.async_get(self.hass)
+        for entity in er.async_entries_for_device(
+            entity_registry, device.id, include_disabled_entities=True
+        ):
+            if entity.config_entry_id == self._entry_id:
+                entity_registry.async_remove(entity.entity_id)
+        device_registry.async_remove_device(device.id)
+
+    @callback
+    def _schedule_entry_reload(self) -> None:
+        """Reload platforms once after a confirmed topology change."""
+        if self._entry_id is None or self._reload_scheduled:
+            return
+        self._reload_scheduled = True
+
+        async def _reload() -> None:
+            try:
+                await self.hass.config_entries.async_reload(self._entry_id)
+            finally:
+                self._reload_scheduled = False
+
+        self.hass.async_create_task(
+            _reload(), f"beatbot_reconcile_{self._entry_id}"
+        )
 
     async def async_refresh_device_state(self, device_id: str) -> None:
         """Fetch state for one device and push it to entities immediately.
@@ -152,20 +249,34 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
     def async_schedule_device_state_refresh(self, device_id: str) -> None:
         """Schedule a delayed single-device state refresh without blocking.
 
-        Spawns a tracked background task (stored in self._refresh_tasks) so
-        the control service call returns immediately and the device's new
-        state is picked up `POST_CONTROL_REFRESH_DELAY` later once the device
-        has actually applied the command. Tracking lets async_unload_entry
-        cancel a still-sleeping refresh instead of letting it fire through a
-        torn-down session.
+        WebSocket events remain the primary real-time update path. This
+        delayed GET is a reconciliation fallback for dropped or delayed push
+        events. Repeated commands for one device are debounced so only the
+        latest scheduled GET runs.
         """
+        previous = self._refresh_tasks.get(device_id)
+        if previous is not None:
+            previous.cancel()
 
         async def _refresh() -> None:
-            await self.async_refresh_device_state(device_id)
+            try:
+                await self.async_refresh_device_state(device_id)
+            except ConfigEntryAuthFailed:
+                _LOGGER.warning(
+                    "Post-control refresh authorization failed for %s; "
+                    "starting reauthentication",
+                    device_id,
+                )
+                if self._config_entry is not None:
+                    self._config_entry.async_start_reauth(self.hass)
+            finally:
+                current = asyncio.current_task()
+                if self._refresh_tasks.get(device_id) is current:
+                    self._refresh_tasks.pop(device_id, None)
 
-        task = self.hass.async_create_task(_refresh())
-        self._refresh_tasks.add(task)
-        task.add_done_callback(self._refresh_tasks.discard)
+        self._refresh_tasks[device_id] = self.hass.async_create_task(
+            _refresh(), f"beatbot_post_control_refresh_{device_id}"
+        )
 
     @callback
     def async_cancel_pending_refreshes(self) -> None:
@@ -175,6 +286,6 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         POST_CONTROL_REFRESH_DELAY window is cancelled rather than left to
         run against a coordinator/api/session that is being torn down.
         """
-        for task in self._refresh_tasks:
+        for task in self._refresh_tasks.values():
             task.cancel()
         self._refresh_tasks.clear()
