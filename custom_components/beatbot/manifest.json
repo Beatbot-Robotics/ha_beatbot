@@ -1,0 +1,19 @@
+{
+  "domain": "beatbot",
+  "name": "Beatbot",
+  "codeowners": [
+    "@Beatbot-Robotics"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "home-assistant.io/integrations/beatbot",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/Beatbot-Robotics/ha_beatbot/issues",
+  "requires_home_assistant": "2025.4.0",
+  "loggers": [
+    "custom_components.beatbot"
+  ],
+  "requirements": ["PyJWT>=2.0"],
+  "version": "v0.0.1"
+}
