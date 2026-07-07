@@ -1,0 +1,183 @@
+{
+  "config": {
+    "step": {
+      "pick_implementation": {
+        "title": "Integrationsmethode auswahlen"
+      },
+      "auth": {
+        "title": "Beatbot-Konto autorisieren",
+        "description": "Folge dem Link, um dich bei Beatbot anzumelden und Home Assistant den Zugriff auf deine Gerate zu erlauben."
+      },
+      "reauth_confirm": {
+        "title": "[%key:common::config_flow::title::reauth%]",
+        "description": "Die Beatbot-Integration muss dein Konto erneut authentifizieren."
+      }
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits konfiguriert.",
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+      "authorize_url_timeout": "Zeituberschreitung beim Erzeugen der Autorisierungs-URL.",
+      "no_url_available": "Keine Autorisierungs-URL verfugbar. Stelle sicher, dass Home Assistant erreichbar ist, oder aktiviere My Home Assistant.",
+      "oauth_timeout": "Zeituberschreitung beim Abrufen des OAuth-Tokens.",
+      "oauth_failed": "OAuth-Token konnte nicht abgerufen werden.",
+      "oauth_unauthorized": "Autorisierung abgelehnt, weil die Authentifizierung fehlgeschlagen ist.",
+      "oauth_error": "Der OAuth-Server hat ein ungultiges Token zuruckgegeben.",
+      "user_rejected_authorize": "Du hast die Autorisierung abgelehnt: {error}.",
+      "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
+      "missing_credentials": "[%key:common::config_flow::abort::missing_credentials%]",
+      "missing_configuration": "[%key:common::config_flow::abort::missing_configuration%]",
+      "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
+      "unknown_region": "Das Beatbot-Konto hat keine unterstutzte Region gemeldet. Stelle sicher, dass das Konto fur eine unterstutzte Region (cn, na, eu) bereitgestellt ist, und versuche es erneut."
+    },
+    "error": {
+      "invalid_auth": "Authentifizierung fehlgeschlagen.",
+      "connection_error": "Verbindung zu den Beatbot-Servern nicht moglich."
+    }
+  },
+  "entity": {
+    "vacuum": {
+      "beatbot_pool_vacuum": {
+        "name": "Poolreiniger"
+      },
+      "beatbot_clean_base_station_vacuum": {
+        "name": "Reinigungsbasisstation"
+      },
+      "beatbot_lawn_mower_vacuum": {
+        "name": "Rasenmaher"
+      }
+    },
+    "sensor": {
+      "work_status": {
+        "name": "Status",
+        "state": {
+          "standby": "Bereit",
+          "goto_charge": "Fahrt zur Ladestation",
+          "charging": "Ladt",
+          "charge_done": "Laden abgeschlossen",
+          "paused": "Pausiert",
+          "cleaning": "Reinigt",
+          "sleep": "Ruhezustand",
+          "return_trip": "Ruckfahrt",
+          "clean_done": "Reinigung abgeschlossen",
+          "remote_control": "Fernsteuerung",
+          "clean_wait": "Wartet auf Reinigung",
+          "wifi_connect": "WLAN-Verbindung",
+          "diving": "Taucht ab",
+          "emerge": "Taucht auf",
+          "auto_dock": "Automatisches Andocken",
+          "dock": "Andocken",
+          "finish_connect": "Verbunden",
+          "self_cleaning": "Selbstreinigung",
+          "uncheck": "Nicht gepruft",
+          "self_checking": "Selbstprufung",
+          "check_down": "Selbstprufung abgeschlossen",
+          "replenish_energy": "Energie wird aufgefullt",
+          "chase_light": "Lichtverfolgung",
+          "dock_done": "Andocken abgeschlossen"
+        }
+      },
+      "battery": {
+        "name": "Batterie"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "error": {
+        "name": "Fehler",
+        "state": {
+          "none": "Keine",
+          "dust_box_full": "Staubbehalter voll",
+          "dust_box_loss": "Staubbehalter fehlt",
+          "power_low": "Niedriger Akkustand",
+          "power_cutting": "Stromausfall",
+          "env_high_temperature": "Hohe Temperatur",
+          "env_low_temperature": "Niedrige Temperatur",
+          "motor_error": "Motorfehler",
+          "motor_wheel_left": "Linker Radmotor",
+          "motor_wheel_right": "Rechter Radmotor",
+          "motor_thruster_left": "Linker Antriebsmotor",
+          "motor_thruster_right": "Rechter Antriebsmotor",
+          "motor_pump": "Pumpenmotor",
+          "motor_airpump_left": "Linker Luftpumpenmotor",
+          "motor_airpump_right": "Rechter Luftpumpenmotor",
+          "motor_brush": "Burstenmotor",
+          "motor_reagent": "Reagenz-Motor",
+          "motor_rod": "Stangenmotor",
+          "enter_shawdow_water_error": "Fehler beim Einfahren in Schattenwasser",
+          "trapped": "Festgefahren",
+          "charge_high_temperature": "Hohe Ladetemperatur",
+          "charge_low_temperature": "Niedrige Ladetemperatur",
+          "motor_thruster": "Antriebsmotor",
+          "platform_clean_err": "Fehler bei Plattformreinigung",
+          "self_err_spray": "Spruhkopf-Fehler bei Selbstprufung",
+          "self_err_lever": "Hebel-Fehler bei Selbstprufung",
+          "self_err_pusher": "Schieber-Fehler bei Selbstprufung",
+          "self_err_clean_conflict": "Reinigungskonflikt bei Selbstprufung",
+          "err_dust_not_install": "Staubbehalter der Basisstation nicht eingesetzt",
+          "notice_self_not_paired": "Bluetooth-Verbindungsfehler zwischen Roboter und Basisstation",
+          "notice_self_base_dust": "Staubbehalter der Basisstation wahrend der Selbstprufung nicht eingesetzt",
+          "notice_self_temp_low": "Niedrige Umgebungstemperatur wahrend der Selbstprufung",
+          "notice_self_robot_not_comm": "Basisstation hat keine Nachricht vom Roboter erhalten",
+          "notice_self_robot_not_pos": "Roboter ist nicht in Reinigungsposition",
+          "notice_self_robot_dust": "Staubbehalter des Roboters nicht eingesetzt",
+          "notice_clean_closed_dust": "Unterer Staubbehalter des Roboters kann wahrend der Reinigung nicht geschlossen werden",
+          "notice_clean_spray_not_pos": "Spruhkopf hat die erforderliche Position nicht erreicht",
+          "notice_clean_opend_dust": "Unterer Staubbehalter des Roboters kann wahrend der Reinigung nicht geoffnet werden",
+          "notice_clean_comm": "Kommunikationsfehler zwischen Roboter und Basisstation wahrend der Reinigung",
+          "notice_clean_robot_not_pos": "Roboter hat die Reinigungsposition verlassen",
+          "notice_clean_base_dust": "Staubbehalter der Basisstation ist wahrend der Reinigung nicht in Position",
+          "notice_clean_spray_leave_pos": "Spruhkopf hat die erforderliche Reinigungsposition verlassen",
+          "notice_clean_user_end_early": "Selbstreinigung vom Benutzer vorzeitig beendet",
+          "notice_cleaned_spray_not_reset": "Spruhkopf konnte nach der Reinigung nicht zuruckgesetzt werden",
+          "notice_cleaned_lever_not_reset": "Hebel konnte nach der Reinigung nicht zuruckgesetzt werden",
+          "notice_clean_drain_pump_empty": "Trockenlaufschutz der Ablaufpumpe aktiviert",
+          "notice_cln_robot_dust_not_pos": "Staubbehalter des Roboters wahrend der Reinigung nicht eingesetzt",
+          "notice_clean_lever_not_reset": "Hebel konnte wahrend der Reinigung nicht zuruckgesetzt werden",
+          "notice_clean_done_normal": "Reinigung normal abgeschlossen"
+        }
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Arbeitsmodus",
+        "state": {
+          "daily": "Taglich",
+          "fast": "Schnellmodus",
+          "surface": "Oberflachenmodus",
+          "custom": "Benutzerdefinierter Modus",
+          "standard": "Standardmodus",
+          "pro": "Pro-Modus",
+          "cec": "Energiesparmodus",
+          "multi": "Mehrplattformmodus",
+          "ai": "KI-Modus",
+          "platform": "Sonnenbank-Modus",
+          "wall": "Wandmodus"
+        }
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "Kindersicherung"
+      },
+      "voice_disturb": {
+        "name": "Sprachmodus Nicht storen"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "Ladt"
+      },
+      "online": {
+        "name": "Online"
+      }
+    }
+  },
+  "exceptions": {
+    "device_offline": {
+      "message": "{device} ist offline."
+    },
+    "control_connection_error": {
+      "message": "{device} kann nicht gesteuert werden, weil der Beatbot-Server nicht erreichbar ist."
+    }
+  }
+}

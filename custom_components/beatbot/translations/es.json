@@ -1,0 +1,183 @@
+{
+  "config": {
+    "step": {
+      "pick_implementation": {
+        "title": "Elegir metodo de integracion"
+      },
+      "auth": {
+        "title": "Autorizar cuenta Beatbot",
+        "description": "Sigue el enlace para iniciar sesion en Beatbot y autorizar a Home Assistant a acceder a tus dispositivos."
+      },
+      "reauth_confirm": {
+        "title": "[%key:common::config_flow::title::reauth%]",
+        "description": "La integracion Beatbot necesita volver a autenticar tu cuenta."
+      }
+    },
+    "abort": {
+      "already_configured": "Esta cuenta ya esta configurada.",
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+      "authorize_url_timeout": "Se agoto el tiempo al generar la URL de autorizacion.",
+      "no_url_available": "No hay URL de autorizacion disponible. Asegurate de que Home Assistant sea accesible o activa My Home Assistant.",
+      "oauth_timeout": "Se agoto el tiempo al obtener el token OAuth.",
+      "oauth_failed": "No se pudo obtener el token OAuth.",
+      "oauth_unauthorized": "Autorizacion rechazada porque fallo la autenticacion.",
+      "oauth_error": "El servidor OAuth devolvio un token no valido.",
+      "user_rejected_authorize": "Has rechazado la autorizacion: {error}.",
+      "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
+      "missing_credentials": "[%key:common::config_flow::abort::missing_credentials%]",
+      "missing_configuration": "[%key:common::config_flow::abort::missing_configuration%]",
+      "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
+      "unknown_region": "La cuenta Beatbot no informo una region compatible. Asegurate de que la cuenta este aprovisionada para una region compatible (cn, na, eu) e intentalo de nuevo."
+    },
+    "error": {
+      "invalid_auth": "Autenticacion fallida.",
+      "connection_error": "No se puede conectar con los servidores Beatbot."
+    }
+  },
+  "entity": {
+    "vacuum": {
+      "beatbot_pool_vacuum": {
+        "name": "Limpiador de piscina"
+      },
+      "beatbot_clean_base_station_vacuum": {
+        "name": "Estacion base de limpieza"
+      },
+      "beatbot_lawn_mower_vacuum": {
+        "name": "Cortacesped"
+      }
+    },
+    "sensor": {
+      "work_status": {
+        "name": "Estado",
+        "state": {
+          "standby": "En espera",
+          "goto_charge": "Volviendo a cargar",
+          "charging": "Cargando",
+          "charge_done": "Carga completada",
+          "paused": "Pausado",
+          "cleaning": "Limpiando",
+          "sleep": "Reposo",
+          "return_trip": "Viaje de regreso",
+          "clean_done": "Limpieza completada",
+          "remote_control": "Control remoto",
+          "clean_wait": "Esperando limpieza",
+          "wifi_connect": "Conectando Wi-Fi",
+          "diving": "Sumergiendo",
+          "emerge": "Emergiendo",
+          "auto_dock": "Acoplamiento automatico",
+          "dock": "Acoplar",
+          "finish_connect": "Conectado",
+          "self_cleaning": "Autolimpieza",
+          "uncheck": "No comprobado",
+          "self_checking": "Autocomprobacion",
+          "check_down": "Autocomprobacion completada",
+          "replenish_energy": "Recargando energia",
+          "chase_light": "Siguiendo luz",
+          "dock_done": "Acoplamiento completado"
+        }
+      },
+      "battery": {
+        "name": "Bateria"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "error": {
+        "name": "Error",
+        "state": {
+          "none": "Ninguno",
+          "dust_box_full": "Deposito de polvo lleno",
+          "dust_box_loss": "Deposito de polvo perdido",
+          "power_low": "Bateria baja",
+          "power_cutting": "Corte de energia",
+          "env_high_temperature": "Temperatura alta",
+          "env_low_temperature": "Temperatura baja",
+          "motor_error": "Error del motor",
+          "motor_wheel_left": "Motor de rueda izquierda",
+          "motor_wheel_right": "Motor de rueda derecha",
+          "motor_thruster_left": "Propulsor izquierdo",
+          "motor_thruster_right": "Propulsor derecho",
+          "motor_pump": "Motor de bomba",
+          "motor_airpump_left": "Bomba de aire izquierda",
+          "motor_airpump_right": "Bomba de aire derecha",
+          "motor_brush": "Motor de cepillo",
+          "motor_reagent": "Motor de reactivo",
+          "motor_rod": "Motor de varilla",
+          "enter_shawdow_water_error": "Error al entrar en agua sombreada",
+          "trapped": "Atrapado",
+          "charge_high_temperature": "Temperatura de carga alta",
+          "charge_low_temperature": "Temperatura de carga baja",
+          "motor_thruster": "Motor propulsor",
+          "platform_clean_err": "Error de limpieza de plataforma",
+          "self_err_spray": "Error de boquilla en autocomprobacion",
+          "self_err_lever": "Error de palanca en autocomprobacion",
+          "self_err_pusher": "Error de empujador en autocomprobacion",
+          "self_err_clean_conflict": "Conflicto de limpieza en autocomprobacion",
+          "err_dust_not_install": "Deposito de polvo de la base no instalado",
+          "notice_self_not_paired": "Error de conexion Bluetooth entre robot y base",
+          "notice_self_base_dust": "Deposito de polvo de la base no instalado durante autocomprobacion",
+          "notice_self_temp_low": "Temperatura ambiente baja durante autocomprobacion",
+          "notice_self_robot_not_comm": "La base no recibio un mensaje del robot",
+          "notice_self_robot_not_pos": "El robot no esta en posicion de limpieza",
+          "notice_self_robot_dust": "Deposito de polvo del robot no instalado",
+          "notice_clean_closed_dust": "No se pudo cerrar el deposito inferior del robot durante la limpieza",
+          "notice_clean_spray_not_pos": "La boquilla no alcanzo la posicion requerida",
+          "notice_clean_opend_dust": "No se pudo abrir el deposito inferior del robot durante la limpieza",
+          "notice_clean_comm": "Error de comunicacion entre robot y base durante la limpieza",
+          "notice_clean_robot_not_pos": "El robot salio de la posicion de limpieza",
+          "notice_clean_base_dust": "El deposito de polvo de la base no esta en posicion durante la limpieza",
+          "notice_clean_spray_leave_pos": "La boquilla salio de la posicion de limpieza requerida",
+          "notice_clean_user_end_early": "Autolimpieza finalizada antes por el usuario",
+          "notice_cleaned_spray_not_reset": "La boquilla no pudo reiniciarse despues de la limpieza",
+          "notice_cleaned_lever_not_reset": "La palanca no pudo reiniciarse despues de la limpieza",
+          "notice_clean_drain_pump_empty": "Proteccion contra funcionamiento en seco de la bomba de drenaje activada",
+          "notice_cln_robot_dust_not_pos": "Deposito de polvo del robot no instalado durante la limpieza",
+          "notice_clean_lever_not_reset": "La palanca no pudo reiniciarse durante la limpieza",
+          "notice_clean_done_normal": "Limpieza completada normalmente"
+        }
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Modo de trabajo",
+        "state": {
+          "daily": "Diario",
+          "fast": "Modo rapido",
+          "surface": "Modo superficie",
+          "custom": "Modo personalizado",
+          "standard": "Modo estandar",
+          "pro": "Modo Pro",
+          "cec": "Modo bajo consumo",
+          "multi": "Modo multiplataforma",
+          "ai": "Modo IA",
+          "platform": "Modo plataforma",
+          "wall": "Modo pared"
+        }
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "Bloqueo infantil"
+      },
+      "voice_disturb": {
+        "name": "No molestar por voz"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "Cargando"
+      },
+      "online": {
+        "name": "En linea"
+      }
+    }
+  },
+  "exceptions": {
+    "device_offline": {
+      "message": "{device} esta sin conexion."
+    },
+    "control_connection_error": {
+      "message": "No se pudo controlar {device} porque no se pudo acceder al servidor Beatbot."
+    }
+  }
+}
