@@ -8,7 +8,6 @@ from homeassistant.components.select import SelectEntity
 
 from .coordinator import BeatbotCoordinator
 from .entity import BeatbotEntity
-from .iot.const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,10 +47,7 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    data = hass.data[DOMAIN][entry.entry_id]
-    if data.get("coordinator") is None:
-        return
-    coordinator = data["coordinator"]
+    coordinator = entry.runtime_data.coordinator
     async_add_entities(
         BeatbotWorkModeSelect(coordinator, device_id)
         for device_id, device in coordinator.data.items()

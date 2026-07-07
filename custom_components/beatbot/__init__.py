@@ -1,5 +1,6 @@
 """The Beatbot integration."""
 
+from dataclasses import dataclass
 import logging
 
 from homeassistant.config_entries import ConfigEntry
@@ -16,7 +17,20 @@ from .iot.event_stream import BeatbotEventClient
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+@dataclass
+class BeatbotRuntimeData:
+    """Runtime objects owned by a Beatbot config entry."""
+
+    coordinator: BeatbotCoordinator
+    api: BeatbotAPI
+    session: config_entry_oauth2_flow.OAuth2Session
+    event_client: BeatbotEventClient
+
+
+type BeatbotConfigEntry = ConfigEntry[BeatbotRuntimeData]
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: BeatbotConfigEntry) -> bool:
     """Set up Beatbot from a config entry."""
     implementations = await config_entry_oauth2_flow.async_get_implementations(
         hass, DOMAIN
@@ -40,28 +54,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     event_client = BeatbotEventClient(hass, entry, session, api, coordinator)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "coordinator": coordinator,
-        "api": api,
-        "session": session,
-        "event_client": event_client,
-    }
+    entry.runtime_data = BeatbotRuntimeData(
+        coordinator=coordinator,
+        api=api,
+        session=session,
+        event_client=event_client,
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
     event_client.async_start()
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: BeatbotConfigEntry) -> bool:
     """Unload a config entry."""
     # Cancel any post-control refresh tasks still sleeping in their delay
     # window before tearing down the coordinator/api/session they close over.
-    data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
-    if data and data.get("event_client") is not None:
-        await data["event_client"].async_stop()
-    if data and data.get("coordinator") is not None:
-        data["coordinator"].async_cancel_pending_refreshes()
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS)
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+    await entry.runtime_data.event_client.async_stop()
+    entry.runtime_data.coordinator.async_cancel_pending_refreshes()
+    unload_ok = await hass.config_entries.async_unload_platforms(
+        entry, SUPPORTED_PLATFORMS
+    )
     return unload_ok

@@ -7,7 +7,7 @@ BEATBOT_HTTP_API_TIMEOUT: int = 30
 
 # WebSocket events provide real-time state changes. Keep a low-frequency full
 # refresh for discovery and reconciliation when an event is missed.
-NETWORK_REFRESH_INTERVAL: int = 1 * 60
+NETWORK_REFRESH_INTERVAL: int = 10 * 60
 
 # Seconds to wait after a control command before fetching the single-device
 # state. The device does not report the new state the instant the action is
@@ -15,8 +15,8 @@ NETWORK_REFRESH_INTERVAL: int = 1 * 60
 POST_CONTROL_REFRESH_DELAY: int = 5
 
 OAUTH2_CLIENT_ID: str = 'home-assistant'
-OAUTH2_AUTHORIZE_URL: str = 'https://oauth-test.beatbot.com/oauth2/authorize'
-OAUTH2_TOKEN_URL: str = 'https://oauth-test.beatbot.com/oauth2/token'
+OAUTH2_AUTHORIZE_URL: str = 'https://oauth.beatbot.com/oauth2/authorize'
+OAUTH2_TOKEN_URL: str = 'https://oauth.beatbot.com/oauth2/token'
 OAUTH2_SCOPE: str = 'device:info'
 
 # seconds, 14 days
@@ -45,16 +45,7 @@ SUPPORTED_PRODUCT_IDS: set[str] = {
     'tz8vjwgcdle3w2lj'
 }
 
-DEFAULT_CLOUD_SERVER: str = 'us'
-CLOUD_SERVERS: dict = {
-    'us': 'United States',
-    'de': 'Europe',
-    'cn': '中国大陆'
-}
 
-SUPPORT_CENTRAL_GATEWAY_CTRL: list = ['us']
-
-DEFAULT_INTEGRATION_LANGUAGE: str = 'en'
 INTEGRATION_LANGUAGES = {
     'de': 'Deutsch',
     'en': 'English',
@@ -79,9 +70,9 @@ DEFAULT_CTRL_MODE: str = 'auto'
 # authorize/token endpoints stay global. An unknown or missing region is
 # rejected at config-flow time — there is no fallback region.
 REGION_API_BASE_URL: dict[str, str] = {
-    'cn': 'https://cn-iot-test.beatbot.com',
-    'na': 'https://na-iot-test.beatbot.com',
-    'eu': 'https://eu-iot-test.beatbot.com',
+    'cn': 'https://cn-iot.beatbot.com',
+    'na': 'https://na-iot.beatbot.com',
+    'eu': 'https://eu-iot.beatbot.com',
 }
 BEATBOT_API_DEVICES_PATH: str = '/openapi/v1/ha'
 BEATBOT_API_DEVICE_STATES_PATH: str = '/openapi/v1/ha/state'

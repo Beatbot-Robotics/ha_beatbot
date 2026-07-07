@@ -6,7 +6,7 @@
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "home-assistant.io/integrations/beatbot",
+  "documentation": "https://www.home-assistant.io/integrations/beatbot",
   "integration_type": "hub",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/Beatbot-Robotics/ha_beatbot/issues",

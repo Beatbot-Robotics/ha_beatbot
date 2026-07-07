@@ -14,7 +14,6 @@ from .iot.category import (
     vacuum_features_from_capabilities,
 )
 from .iot.const import (
-    DOMAIN,
     INTERFACE_PAUSE,
     INTERFACE_RETURN_TO_BASE,
     INTERFACE_START,
@@ -87,10 +86,7 @@ class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    data = hass.data[DOMAIN][entry.entry_id]
-    if data.get("coordinator") is None:
-        return
-    coordinator = data["coordinator"]
+    coordinator = entry.runtime_data.coordinator
     async_add_entities(
         BeatbotPoolVacuum(coordinator, device_id)
         for device_id in coordinator.data

@@ -1,0 +1,42 @@
+rules:
+  # Bronze
+  action-setup:
+    status: exempt
+    comment: This integration does not register custom actions/services.
+  appropriate-polling:
+    status: done
+    comment: WebSocket push is primary; a 10 minute coordinator poll reconciles discovery and missed events.
+  brands:
+    status: todo
+    comment: Add Beatbot icon/logo to the Home Assistant Brands repository before Core submission.
+  common-modules: done
+  config-flow: done
+  config-flow-test-coverage:
+    status: done
+    comment: User flow, duplicate account, missing/unknown region, reauth account mismatch, and OAuth error/timeout paths are covered.
+  dependency-transparency: done
+  docs-actions:
+    status: exempt
+    comment: This integration does not register custom actions/services.
+  docs-conditions:
+    status: exempt
+    comment: This integration does not provide conditions.
+  docs-high-level-description:
+    status: todo
+    comment: Add the official integration documentation page in home-assistant.io.
+  docs-installation-instructions:
+    status: done
+    comment: Installation, OAuth setup, and supported-region instructions are documented in README.md.
+  docs-removal-instructions:
+    status: done
+    comment: Removal instructions are documented in README.md.
+  docs-triggers:
+    status: exempt
+    comment: This integration does not provide triggers.
+  entity-event-setup: done
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry: done

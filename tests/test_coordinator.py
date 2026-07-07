@@ -6,8 +6,13 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
-from homeassistant.core import HomeAssistant
+import pytest
 
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.update_coordinator import UpdateFailed
+
+from custom_components.beatbot.api import BeatbotAuthError, BeatbotConnectionError
 from custom_components.beatbot.coordinator import BeatbotCoordinator
 from custom_components.beatbot.models import BeatbotDeviceData
 
@@ -48,6 +53,34 @@ async def test_coordinator_only_keeps_supported_products(hass: HomeAssistant) ->
     assert "dev-unsupported" not in data
     # Batch state endpoint still runs; unsupported device's state is simply ignored.
     api.get_device_states.assert_awaited_once()
+
+
+async def test_coordinator_auth_failure_requests_reauth(
+    hass: HomeAssistant,
+) -> None:
+    """Auth failures during first refresh become ConfigEntryAuthFailed."""
+    api = SimpleNamespace(
+        get_devices=AsyncMock(side_effect=BeatbotAuthError),
+        get_device_states=AsyncMock(return_value={}),
+    )
+    coordinator = BeatbotCoordinator(hass, api)
+
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()
+
+
+async def test_coordinator_connection_failure_is_retryable(
+    hass: HomeAssistant,
+) -> None:
+    """Connection failures during first refresh remain retryable setup failures."""
+    api = SimpleNamespace(
+        get_devices=AsyncMock(side_effect=BeatbotConnectionError),
+        get_device_states=AsyncMock(return_value={}),
+    )
+    coordinator = BeatbotCoordinator(hass, api)
+
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
 
 
 async def test_coordinator_empty_allow_list_drops_everything(

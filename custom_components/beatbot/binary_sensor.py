@@ -8,7 +8,6 @@ from .iot.category import (
     CHARGING_STATUS_CODES_BY_CATEGORY,
     ERROR_BITS_BY_CATEGORY,
 )
-from .iot.const import DOMAIN
 from .coordinator import BeatbotCoordinator
 
 
@@ -90,10 +89,7 @@ def _remove_obsolete_error_entities(hass, entry) -> None:
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    data = hass.data[DOMAIN][entry.entry_id]
-    if data.get("coordinator") is None:
-        return
-    coordinator = data["coordinator"]
+    coordinator = entry.runtime_data.coordinator
     _remove_obsolete_error_entities(hass, entry)
     entities = []
     for device_id, device in coordinator.data.items():

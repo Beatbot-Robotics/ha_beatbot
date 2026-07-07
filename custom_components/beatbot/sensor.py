@@ -3,7 +3,6 @@ from homeassistant.const import EntityCategory, PERCENTAGE
 from homeassistant.helpers import entity_registry as er
 
 from .entity import BeatbotEntity
-from .iot.const import DOMAIN
 from .iot.category import (
     BATTERY_CATEGORIES,
     CATEGORY_MAP,
@@ -129,10 +128,7 @@ class BeatbotErrorSensor(BeatbotEntity, SensorEntity):
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    data = hass.data[DOMAIN][entry.entry_id]
-    if data.get("coordinator") is None:
-        return
-    coordinator = data["coordinator"]
+    coordinator = entry.runtime_data.coordinator
     _remove_obsolete_firmware_entity(hass, entry)
     unsupported_battery_device_ids = {
         device_id

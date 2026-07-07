@@ -83,6 +83,7 @@ class BeatbotAPI:
         try:
             resp = await self._session.async_request(
                 method, url, params=params, json=json_body,
+                headers={"Accept": "application/json"},
                 timeout=ClientTimeout(total=BEATBOT_HTTP_API_TIMEOUT),
             )
         except Exception as err:
@@ -104,10 +105,22 @@ class BeatbotAPI:
             )
             raise BeatbotConnectionError(f"API request failed: {resp.status}")
 
+        body = await resp.text()
         try:
-            payload = await resp.json()
-        except Exception as err:
-            raise BeatbotConnectionError(f"Failed to decode response: {err}") from err
+            payload = json.loads(body)
+        except (json.JSONDecodeError, TypeError) as err:
+            content_type = resp.headers.get("Content-Type", "unknown")
+            _LOGGER.warning(
+                "Beatbot API %s %s returned non-JSON response (%s, %s): %s",
+                method, path, resp.status, content_type, body[:500],
+            )
+            raise BeatbotConnectionError(
+                "API returned non-JSON response "
+                f"({resp.status}, {content_type})"
+            ) from err
+
+        if not isinstance(payload, dict):
+            raise BeatbotConnectionError("API returned an invalid response envelope")
 
         if payload.get("code") != RESULT_SUCCESS_CODE:
             raise BeatbotConnectionError(

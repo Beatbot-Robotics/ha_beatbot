@@ -4,3 +4,7 @@
 /.venv-py312-backup/
 __pycache__/
 *.pyc
+/config/*
+/config
+/.idea/pyLspTools.xml
+/.idea/*

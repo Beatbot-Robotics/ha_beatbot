@@ -9,7 +9,6 @@ from homeassistant.components.switch import SwitchEntity
 from .coordinator import BeatbotCoordinator
 from .entity import BeatbotEntity
 from .iot.const import (
-    DOMAIN,
     INTERFACE_CHILD_LOCK,
     INTERFACE_VOICE_DISTURB,
 )
@@ -73,10 +72,7 @@ class BeatbotSwitch(BeatbotEntity, SwitchEntity):
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    data = hass.data[DOMAIN][entry.entry_id]
-    if data.get("coordinator") is None:
-        return
-    coordinator = data["coordinator"]
+    coordinator = entry.runtime_data.coordinator
     entities = []
     for device_id, device in coordinator.data.items():
         for description in SWITCH_DESCRIPTIONS:

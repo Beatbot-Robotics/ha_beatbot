@@ -1,39 +1,4 @@
 {
-  "config": {
-    "step": {
-      "pick_implementation": {
-        "title": "选择集成方式"
-      },
-      "auth": {
-        "title": "授权 Beatbot 账号",
-        "description": "点击链接前往 Beatbot 登录并授权 Home Assistant 访问您的设备。"
-      },
-      "reauth_confirm": {
-        "title": "[%key:common::config_flow::title::reauth%]",
-        "description": "Beatbot 集成需要重新认证您的账号"
-      }
-    },
-    "abort": {
-      "already_configured": "该账号已配置。",
-      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
-      "authorize_url_timeout": "生成授权链接超时。",
-      "no_url_available": "无法获取授权链接。请确认 Home Assistant 可从外网访问，或已启用 My Home Assistant。",
-      "oauth_timeout": "获取 OAuth 令牌超时。",
-      "oauth_failed": "获取 OAuth 令牌失败。",
-      "oauth_unauthorized": "授权被拒绝（认证失败）。",
-      "oauth_error": "OAuth 服务器返回的令牌无效。",
-      "user_rejected_authorize": "您已拒绝授权：{error}。",
-      "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
-      "missing_credentials": "[%key:common::config_flow::abort::missing_credentials%]",
-      "missing_configuration": "[%key:common::config_flow::abort::missing_configuration%]",
-      "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
-      "unknown_region": "Beatbot 账号未返回受支持的区域。请确认账号已开通受支持的区域（cn、na、eu）后重试。"
-    },
-    "error": {
-      "invalid_auth": "认证失败。",
-      "connection_error": "无法连接到 Beatbot 服务器。"
-    }
-  },
   "entity": {
     "vacuum": {
       "beatbot_pool_vacuum": {

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import logging
 from typing import Any
 
-import jwt
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -33,12 +35,18 @@ def _decode_access_token(access_token: str) -> dict[str, Any] | None:
     claim (selects the resource API base URL) from the token.
     """
     try:
-        return jwt.decode(
-            access_token,
-            options={"verify_signature": False, "verify_aud": False},
-        )
-    except jwt.PyJWTError:
+        payload = access_token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except (
+        binascii.Error,
+        IndexError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
         return None
+    return claims if isinstance(claims, dict) else None
 
 
 class BeatbotOAuth2Implementation(
