@@ -184,6 +184,7 @@ async def test_rejected_token_is_refreshed_only_once(hass: HomeAssistant) -> Non
     oauth_session = SimpleNamespace(
         token=entry.data["token"],
         implementation=implementation,
+        _token_lock=asyncio.Lock(),
     )
     client = BeatbotEventClient(
         hass,
@@ -201,6 +202,52 @@ async def test_rejected_token_is_refreshed_only_once(hass: HomeAssistant) -> Non
     await client._async_refresh_token_once("old")
 
     implementation.async_refresh_token.assert_awaited_once()
+
+
+async def test_event_refresh_shares_oauth_session_rotation_lock(
+    hass: HomeAssistant,
+) -> None:
+    """A REST refresh wins without WebSocket reusing the rotated token."""
+    entry = SimpleNamespace(
+        entry_id="entry",
+        data={"token": {"access_token": "old", "refresh_token": "refresh-old"}},
+    )
+    implementation = SimpleNamespace(async_refresh_token=AsyncMock())
+    token_lock = asyncio.Lock()
+    oauth_session = SimpleNamespace(
+        token=entry.data["token"],
+        implementation=implementation,
+        _token_lock=token_lock,
+    )
+    client = BeatbotEventClient(
+        hass,
+        entry,
+        oauth_session,
+        SimpleNamespace(event_stream_url="ws://example/events"),
+        Mock(),
+    )
+
+    async with token_lock:
+        websocket_refresh = asyncio.create_task(
+            client._async_refresh_token_once("old")
+        )
+        await asyncio.sleep(0)
+        implementation.async_refresh_token.assert_not_awaited()
+
+        # Simulate the REST OAuth2Session completing rotation while it owns
+        # the same lock. The WebSocket path must observe and keep this token.
+        entry.data = {
+            "token": {
+                "access_token": "new",
+                "refresh_token": "refresh-new",
+            }
+        }
+        oauth_session.token = entry.data["token"]
+
+    await websocket_refresh
+
+    implementation.async_refresh_token.assert_not_awaited()
+    assert entry.data["token"]["refresh_token"] == "refresh-new"
 
 
 async def test_repeated_handshake_401_starts_reauth(hass: HomeAssistant) -> None:

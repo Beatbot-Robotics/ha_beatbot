@@ -65,7 +65,6 @@ class BeatbotEventClient:
         self._task: asyncio.Task[None] | None = None
         self._ws: ClientWebSocketResponse | None = None
         self._stopping = False
-        self._token_refresh_lock = asyncio.Lock()
         self._handshake_refresh_attempted = False
         self._has_connected = False
         self._seen_event_ids: OrderedDict[str, None] = OrderedDict()
@@ -144,20 +143,41 @@ class BeatbotEventClient:
             await self._async_close_connection()
 
     async def _async_refresh_token_once(self, rejected_access_token: str) -> None:
-        """Refresh a rejected token, coalescing concurrent refresh requests."""
-        async with self._token_refresh_lock:
+        """Refresh a rejected token through the session's shared rotation lock."""
+        # OAuth2Session uses this lock for REST-triggered automatic refreshes.
+        # Sharing it here is essential when refresh-token rotation is enabled:
+        # two independent refreshes with the same token would invalidate one
+        # another and leave HA holding a refresh token the server no longer
+        # accepts. HA 2025.4 (our minimum) and current HA expose this lock.
+        async with self._oauth_session._token_lock:
             current_token = self._oauth_session.token
             if current_token.get("access_token") != rejected_access_token:
+                _LOGGER.debug(
+                    "Skipping Beatbot OAuth refresh for an already replaced token "
+                    "(entry_id=%s)",
+                    self._entry.entry_id,
+                )
                 return
             try:
                 new_token = await self._oauth_session.implementation.async_refresh_token(
                     current_token
                 )
             except Exception as err:
+                _LOGGER.warning(
+                    "Beatbot OAuth refresh after event stream rejection failed "
+                    "(entry_id=%s): %s",
+                    self._entry.entry_id,
+                    err,
+                )
                 raise ConfigEntryAuthFailed from err
             self._hass.config_entries.async_update_entry(
                 self._entry,
                 data={**self._entry.data, "token": new_token},
+            )
+            _LOGGER.info(
+                "Beatbot OAuth token rotated after event stream rejection "
+                "(entry_id=%s)",
+                self._entry.entry_id,
             )
 
     async def _connect_and_receive(self) -> None:
