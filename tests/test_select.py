@@ -27,11 +27,17 @@ def _make_coordinator() -> SimpleNamespace:
         is_online=True,
         work_mode_options={0: "fast", 2: "custom", 7: "ai"},
     )
-    return SimpleNamespace(
+    coordinator = SimpleNamespace(
         data={DEVICE_ID: device},
         api=SimpleNamespace(set_work_mode=AsyncMock()),
+        async_apply_device_event=MagicMock(
+            side_effect=lambda _device_id, states: setattr(
+                device, "work_mode", states["select.work_mode"]
+            )
+        ),
         async_schedule_device_state_refresh=MagicMock(),
     )
+    return coordinator
 
 
 def test_work_mode_select_exposes_capability_options() -> None:
@@ -57,4 +63,8 @@ async def test_work_mode_select_sends_backend_label(option: str) -> None:
     await select.async_select_option(option)
 
     coordinator.api.set_work_mode.assert_awaited_once_with(DEVICE_ID, option)
+    coordinator.async_apply_device_event.assert_called_once_with(
+        DEVICE_ID, {"select.work_mode": select._option_to_value[option]}
+    )
+    assert select.current_option == option
     coordinator.async_schedule_device_state_refresh.assert_called_once_with(DEVICE_ID)

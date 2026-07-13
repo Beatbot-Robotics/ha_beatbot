@@ -40,8 +40,23 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
                 "Unknown work mode %r for %s; ignoring", option, self._device_id
             )
             return
+        target_value = self._option_to_value[option]
         await self._async_send_command(
             self.coordinator.api.set_work_mode(self._device_id, option)
+        )
+        # The command response confirms acceptance, but the cloud state event
+        # arrives later. Apply the selected value immediately so HA does not
+        # render the old coordinator value after the service call completes
+        # and then jump forward again when WebSocket reconciliation arrives.
+        self.coordinator.async_apply_device_event(
+            self._device_id, {"select.work_mode": target_value}
+        )
+        _LOGGER.info(
+            "Applied Beatbot work mode after successful command "
+            "(deviceId=%s, option=%s, value=%s)",
+            self._device_id,
+            option,
+            target_value,
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
