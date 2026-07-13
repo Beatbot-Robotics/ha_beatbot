@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -103,7 +104,7 @@ async def test_coordinator_empty_allow_list_drops_everything(
 
 
 async def test_device_event_overlays_state_without_resetting_poll(
-    hass: HomeAssistant,
+    hass: HomeAssistant, caplog,
 ) -> None:
     """A push updates the existing device and only notifies listeners."""
     coordinator = BeatbotCoordinator(hass, SimpleNamespace())
@@ -113,12 +114,16 @@ async def test_device_event_overlays_state_without_resetting_poll(
     remove_listener = coordinator.async_add_listener(listener)
     next_poll = coordinator._unsub_refresh
 
-    coordinator.async_apply_device_event(
-        "dev-1", {"vacuum.battery": 42}, is_online=False
-    )
+    with caplog.at_level(logging.INFO, logger="custom_components.beatbot.coordinator"):
+        coordinator.async_apply_device_event(
+            "dev-1", {"vacuum.battery": 42}, is_online=False
+        )
 
     assert device.battery_level == 42
     assert device.is_online is False
+    assert "source=websocket" in caplog.text
+    assert "interfaceInfo=vacuum.battery, old=80, new=42" in caplog.text
+    assert "interfaceInfo=online, old=True, new=False" in caplog.text
     assert coordinator._unsub_refresh is next_poll
     listener.assert_called_once()
     remove_listener()
@@ -136,7 +141,7 @@ async def test_device_event_ignores_unknown_device(hass: HomeAssistant) -> None:
 
 
 async def test_post_control_refresh_fetches_only_target_device(
-    hass: HomeAssistant, monkeypatch
+    hass: HomeAssistant, monkeypatch, caplog
 ) -> None:
     """A delayed fallback GET applies state for the controlled device."""
     from custom_components.beatbot import coordinator as coord_mod
@@ -154,12 +159,15 @@ async def test_post_control_refresh_fetches_only_target_device(
     coordinator = BeatbotCoordinator(hass, api)
     coordinator.async_set_updated_data({"dev-1": device})
 
-    coordinator.async_schedule_device_state_refresh("dev-1")
-    task = coordinator._refresh_tasks["dev-1"]
-    await task
+    with caplog.at_level(logging.INFO, logger="custom_components.beatbot.coordinator"):
+        coordinator.async_schedule_device_state_refresh("dev-1")
+        task = coordinator._refresh_tasks["dev-1"]
+        await task
 
     api.get_device_state.assert_awaited_once_with("dev-1")
     assert device.work_status == 5
+    assert "source=post_control" in caplog.text
+    assert "interfaceInfo=vacuum.state, old=0, new=5" in caplog.text
     assert coordinator._refresh_tasks == {}
 
 

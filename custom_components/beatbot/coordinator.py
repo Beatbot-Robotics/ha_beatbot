@@ -18,7 +18,7 @@ from .iot.const import (
     SUPPORTED_PRODUCT_CATEGORIES,
     SUPPORTED_PRODUCT_IDS,
 )
-from .iot.mapping import apply_state
+from .iot.mapping import HA_STATE_FIELD_MAP, apply_state
 from .models import BeatbotDeviceData
 
 _LOGGER = logging.getLogger(__name__)
@@ -98,10 +98,21 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
                 "Device state fetch failed, using discovery-only data: %s", err
             )
             states = {}
+        else:
+            _LOGGER.info(
+                "Beatbot state pull completed (source=batch, deviceCount=%s)",
+                len(states),
+            )
 
         for device_id, device in result.items():
             if (state := states.get(device_id)) is not None:
-                apply_state(device, state.get("states"), state.get("is_online"))
+                self._apply_state_with_logging(
+                    device_id,
+                    device,
+                    state.get("states"),
+                    state.get("is_online"),
+                    source="batch",
+                )
         self._reconcile_device_set(result)
         return result
 
@@ -222,7 +233,22 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         device = self.data.get(device_id)
         if device is None:
             return
-        apply_state(device, state.get("states"), state.get("is_online"))
+        state_values = state.get("states")
+        is_online = state.get("is_online")
+        _LOGGER.info(
+            "Beatbot state pull completed "
+            "(source=post_control, deviceId=%s, stateCount=%s, online=%s)",
+            device_id,
+            len(state_values or {}),
+            is_online,
+        )
+        self._apply_state_with_logging(
+            device_id,
+            device,
+            state_values,
+            is_online,
+            source="post_control",
+        )
         # Push the in-place update to listeners and reset the poll timer so
         # we don't double-fetch right after this manual update.
         self.async_set_updated_data(self.data)
@@ -239,11 +265,53 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         if device is None:
             _LOGGER.debug("Ignoring event for undiscovered device %s", device_id)
             return
-        apply_state(device, states, is_online)
+        self._apply_state_with_logging(
+            device_id,
+            device,
+            states,
+            is_online,
+            source="websocket",
+        )
         # DataUpdateCoordinator.async_set_updated_data resets the next poll
         # deadline. Notify listeners directly so steady event traffic cannot
         # postpone the source-of-truth reconciliation poll indefinitely.
         self.async_update_listeners()
+
+    @staticmethod
+    def _apply_state_with_logging(
+        device_id: str,
+        device: BeatbotDeviceData,
+        states: dict | None,
+        is_online: bool | None,
+        *,
+        source: str,
+    ) -> None:
+        """Apply state and log useful field-level changes without credentials."""
+        for interface_info, new_value in (states or {}).items():
+            field = HA_STATE_FIELD_MAP.get(interface_info)
+            if field is None or not hasattr(device, field):
+                continue
+            old_value = getattr(device, field)
+            if old_value != new_value:
+                _LOGGER.info(
+                    "Beatbot state changed "
+                    "(source=%s, deviceId=%s, interfaceInfo=%s, old=%r, new=%r)",
+                    source,
+                    device_id,
+                    interface_info,
+                    old_value,
+                    new_value,
+                )
+        if is_online is not None and device.is_online != bool(is_online):
+            _LOGGER.info(
+                "Beatbot state changed "
+                "(source=%s, deviceId=%s, interfaceInfo=online, old=%r, new=%r)",
+                source,
+                device_id,
+                device.is_online,
+                bool(is_online),
+            )
+        apply_state(device, states, is_online)
 
     @callback
     def async_schedule_device_state_refresh(self, device_id: str) -> None:
