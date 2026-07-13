@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 
+from aiohttp import ClientResponseError
 import pytest
 
-from custom_components.beatbot.api import BeatbotAPI, BeatbotConnectionError
-from custom_components.beatbot.iot.const import REGION_API_BASE_URL
+from custom_components.beatbot.api import (
+    BeatbotAPI,
+    BeatbotAuthError,
+    BeatbotConnectionError,
+)
+from custom_components.beatbot.iot.const import OAUTH2_TOKEN_URL, REGION_API_BASE_URL
 
 
 def _api_for_region(region: str | None) -> BeatbotAPI:
@@ -73,6 +79,16 @@ class _Session:
         return self.response
 
 
+class _ErrorSession:
+    """OAuth2Session double that raises a request error."""
+
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    async def async_request(self, _method: str, _url: str, **kwargs):
+        raise self.error
+
+
 @pytest.mark.asyncio
 async def test_request_accepts_json_even_with_wrong_content_type() -> None:
     """Some gateways mislabel JSON; parse the body instead of failing MIME checks."""
@@ -104,4 +120,38 @@ async def test_request_reports_html_response_as_non_json() -> None:
     api._session = session
 
     with pytest.raises(BeatbotConnectionError, match="API returned non-JSON response"):
+        await api._request("GET", "/openapi/v1/ha")
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_rejection_requires_reauthentication(caplog) -> None:
+    """A terminal OAuth refresh response triggers reauth and leaves a safe log."""
+    request_info = SimpleNamespace(real_url=OAUTH2_TOKEN_URL)
+    error = ClientResponseError(request_info, (), status=400, message="Bad Request")
+    api = _api_for_region("na")
+    api._entry.entry_id = "entry-123"
+    api._session = _ErrorSession(error)
+
+    with (
+        caplog.at_level(logging.WARNING, logger="custom_components.beatbot.api"),
+        pytest.raises(BeatbotAuthError, match="reauthentication required"),
+    ):
+        await api._request("GET", "/openapi/v1/ha")
+
+    assert "OAuth token refresh rejected" in caplog.text
+    assert "HTTP 400" in caplog.text
+    assert "entry_id=entry-123" in caplog.text
+    assert "refresh-token" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [408, 429, 500])
+async def test_retryable_oauth_failure_remains_connection_error(status: int) -> None:
+    """Transient token endpoint failures remain retryable connection errors."""
+    request_info = SimpleNamespace(real_url=OAUTH2_TOKEN_URL)
+    error = ClientResponseError(request_info, (), status=status, message="Temporary")
+    api = _api_for_region("na")
+    api._session = _ErrorSession(error)
+
+    with pytest.raises(BeatbotConnectionError):
         await api._request("GET", "/openapi/v1/ha")

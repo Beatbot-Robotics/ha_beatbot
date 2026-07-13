@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import json
 import logging
+from http import HTTPStatus
 from typing import Any
 
-from aiohttp import ClientTimeout
+from aiohttp import ClientResponseError, ClientTimeout
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -29,6 +30,7 @@ from .iot.const import (
     BEATBOT_API_DEVICE_STATES_PATH,
     BEATBOT_HTTP_API_TIMEOUT,
     INTERFACE_WORK_MODE,
+    OAUTH2_TOKEN_URL,
     REGION_API_BASE_URL,
     RESULT_SUCCESS_CODE,
 )
@@ -43,6 +45,16 @@ class BeatbotAuthError(Exception):
 
 class BeatbotConnectionError(Exception):
     """Raised when the API cannot be reached or returns an error."""
+
+
+def _is_oauth_reauthentication_error(err: ClientResponseError) -> bool:
+    """Return whether an OAuth token response requires user reauthentication."""
+    request_url = str(getattr(err.request_info, "real_url", "")).split("?", 1)[0]
+    return (
+        request_url == OAUTH2_TOKEN_URL
+        and HTTPStatus.BAD_REQUEST <= err.status < HTTPStatus.INTERNAL_SERVER_ERROR
+        and err.status not in (HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.TOO_MANY_REQUESTS)
+    )
 
 
 class BeatbotAPI:
@@ -86,6 +98,19 @@ class BeatbotAPI:
                 headers={"Accept": "application/json"},
                 timeout=ClientTimeout(total=BEATBOT_HTTP_API_TIMEOUT),
             )
+        except ClientResponseError as err:
+            if _is_oauth_reauthentication_error(err):
+                _LOGGER.warning(
+                    "Beatbot OAuth token refresh rejected (HTTP %s, entry_id=%s, "
+                    "endpoint=%s); user reauthentication is required",
+                    err.status,
+                    getattr(self._entry, "entry_id", "unknown"),
+                    OAUTH2_TOKEN_URL,
+                )
+                raise BeatbotAuthError(
+                    "OAuth token refresh rejected; reauthentication required"
+                ) from err
+            raise BeatbotConnectionError(str(err)) from err
         except Exception as err:
             raise BeatbotConnectionError(str(err)) from err
 
