@@ -237,9 +237,9 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         is_online = state.get("is_online")
         _LOGGER.info(
             "Beatbot state pull completed "
-            "(source=post_control, deviceId=%s, stateCount=%s, online=%s)",
+            "(source=post_control, deviceId=%s, states=%r, online=%s)",
             device_id,
-            len(state_values or {}),
+            state_values,
             is_online,
         )
         self._apply_state_with_logging(

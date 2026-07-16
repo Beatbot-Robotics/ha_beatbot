@@ -167,6 +167,7 @@ async def test_post_control_refresh_fetches_only_target_device(
     api.get_device_state.assert_awaited_once_with("dev-1")
     assert device.work_status == 5
     assert "source=post_control" in caplog.text
+    assert "states={'vacuum.state': 5}" in caplog.text
     assert "interfaceInfo=vacuum.state, old=0, new=5" in caplog.text
     assert coordinator._refresh_tasks == {}
 

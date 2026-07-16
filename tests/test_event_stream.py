@@ -48,6 +48,34 @@ def _event(
     )
 
 
+def test_start_registers_entry_background_task(hass: HomeAssistant) -> None:
+    """The lifetime WebSocket supervisor must not block HA startup."""
+    task = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry",
+        async_create_background_task=Mock(return_value=task),
+    )
+    client = BeatbotEventClient(
+        hass,
+        entry,
+        SimpleNamespace(),
+        SimpleNamespace(event_stream_url="ws://example/events"),
+        Mock(),
+    )
+
+    try:
+        client.async_start()
+        call_args = entry.async_create_background_task.call_args.args
+    finally:
+        entry.async_create_background_task.call_args.args[1].close()
+
+    entry.async_create_background_task.assert_called_once()
+    assert call_args[0] is hass
+    assert call_args[1].cr_code is BeatbotEventClient._run.__code__
+    assert call_args[2] == "beatbot_event_stream_entry"
+    assert client._task is task
+
+
 def test_property_event_routes_incremental_state(hass: HomeAssistant) -> None:
     client, coordinator = _client(hass)
 

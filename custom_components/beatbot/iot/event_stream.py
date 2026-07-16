@@ -74,8 +74,10 @@ class BeatbotEventClient:
         """Start the connection supervisor without blocking setup."""
         if self._task is None or self._task.done():
             self._stopping = False
-            self._task = self._hass.async_create_task(
-                self._run(), f"beatbot_event_stream_{self._entry.entry_id}"
+            self._task = self._entry.async_create_background_task(
+                self._hass,
+                self._run(),
+                f"beatbot_event_stream_{self._entry.entry_id}",
             )
 
     async def async_stop(self) -> None:
