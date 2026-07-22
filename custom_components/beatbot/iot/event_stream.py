@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import OrderedDict
+from contextlib import suppress
 import logging
 import random
 
@@ -20,10 +21,12 @@ from beatbot_cloud import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers import config_entry_oauth2_flow
+from homeassistant.helpers import (
+    config_entry_oauth2_flow,
+    device_registry as dr,
+    entity_registry as er,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
 
 from ..api import BeatbotAPI
 from ..coordinator import BeatbotCoordinator
@@ -55,6 +58,7 @@ class BeatbotEventClient:
         api: BeatbotAPI,
         coordinator: BeatbotCoordinator,
     ) -> None:
+        """Initialize the Beatbot event client."""
         self._hass = hass
         self._entry = entry
         self._oauth_session = oauth_session
@@ -86,10 +90,8 @@ class BeatbotEventClient:
         task, self._task = self._task, None
         if task is not None and task is not asyncio.current_task():
             task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
     async def _run(self) -> None:
         failures = 0
@@ -121,9 +123,9 @@ class BeatbotEventClient:
                     self._entry.async_start_reauth(self._hass)
                     return
                 except (
+                    TimeoutError,
                     BeatbotConnectionError,
                     ClientError,
-                    asyncio.TimeoutError,
                     ConnectionError,
                 ) as err:
                     failures += 1
@@ -147,43 +149,35 @@ class BeatbotEventClient:
 
     async def _async_refresh_token_once(self, rejected_access_token: str) -> None:
         """Refresh a rejected token through the session's shared rotation lock."""
-        # OAuth2Session uses this lock for REST-triggered automatic refreshes.
-        # Sharing it here is essential when refresh-token rotation is enabled:
-        # two independent refreshes with the same token would invalidate one
-        # another and leave HA holding a refresh token the server no longer
-        # accepts. HA 2025.4 (our minimum) and current HA expose this lock.
-        async with self._oauth_session._token_lock:
-            current_token = self._oauth_session.token
-            if current_token.get("access_token") != rejected_access_token:
-                _LOGGER.debug(
-                    "Skipping Beatbot OAuth refresh for an already replaced token "
-                    "(entry_id=%s)",
-                    self._entry.entry_id,
-                )
-                return
-            try:
-                new_token = (
-                    await self._oauth_session.implementation.async_refresh_token(
-                        current_token
-                    )
-                )
-            except Exception as err:
-                _LOGGER.warning(
-                    "Beatbot OAuth refresh after event stream rejection failed "
-                    "(entry_id=%s): %s",
-                    self._entry.entry_id,
-                    err,
-                )
-                raise ConfigEntryAuthFailed from err
-            self._hass.config_entries.async_update_entry(
-                self._entry,
-                data={**self._entry.data, "token": new_token},
-            )
-            _LOGGER.info(
-                "Beatbot OAuth token rotated after event stream rejection "
+        current_token = self._oauth_session.token
+        if current_token.get("access_token") != rejected_access_token:
+            _LOGGER.debug(
+                "Skipping Beatbot OAuth refresh for an already replaced token "
                 "(entry_id=%s)",
                 self._entry.entry_id,
             )
+            return
+        self._hass.config_entries.async_update_entry(
+            self._entry,
+            data={
+                **self._entry.data,
+                "token": {**current_token, "expires_at": 0},
+            },
+        )
+        try:
+            await self._oauth_session.async_ensure_token_valid()
+        except Exception as err:
+            _LOGGER.warning(
+                "Beatbot OAuth refresh after event stream rejection failed "
+                "(entry_id=%s): %s",
+                self._entry.entry_id,
+                err,
+            )
+            raise ConfigEntryAuthFailed from err
+        _LOGGER.info(
+            "Beatbot OAuth token rotated after event stream rejection (entry_id=%s)",
+            self._entry.entry_id,
+        )
 
     async def _connect_and_receive(self) -> None:
         await self._oauth_session.async_ensure_token_valid()
@@ -216,23 +210,6 @@ class BeatbotEventClient:
             if self._stream is stream:
                 self._stream = None
 
-    @staticmethod
-    def _raise_for_close_code(
-        code: int | None, access_token: str, error: BaseException | None
-    ) -> None:
-        """Translate server close codes into supervisor actions."""
-        _LOGGER.warning(
-            "Beatbot event stream closed closeCode=%s deviceId=unknown", code
-        )
-        stream = object.__new__(BeatbotEventStream)
-        stream._access_token = access_token
-        try:
-            stream._raise_for_close_code(code, error)
-        except BeatbotTokenRejectedError:
-            raise
-        except BeatbotAuthenticationError as err:
-            raise ConfigEntryAuthFailed from err
-
     async def _async_close_connection(self) -> None:
         """Close and discard the current connection."""
         stream, self._stream = self._stream, None
@@ -248,49 +225,48 @@ class BeatbotEventClient:
 
     def _handle_event(self, event: BeatbotEvent) -> None:
         """Apply one validated event to Home Assistant state."""
-        try:
-            event_id = event.event_id
-            event_type = event.event_type
-            device_id = event.device_id
-            payload = event.payload
-            if event_id in self._seen_event_ids:
-                return
-            self._remember_event(event_id)
-            _LOGGER.info(
-                "Received Beatbot event eventId=%s deviceId=%s type=%s",
-                event_id,
-                device_id,
-                event_type,
-            )
+        event_id = event.event_id
+        event_type = event.event_type
+        device_id = event.device_id
+        payload = event.payload
+        if event_id in self._seen_event_ids:
+            return
+        self._remember_event(event_id)
+        _LOGGER.info(
+            "Received Beatbot event eventId=%s deviceId=%s type=%s",
+            event_id,
+            device_id,
+            event_type,
+        )
 
-            if event_type == "properties_changed":
-                interface_info = payload.get("interfaceInfo")
-                if not isinstance(interface_info, str) or not interface_info:
-                    raise ValueError("property event has no interfaceInfo")
-                self._coordinator.async_apply_device_event(
-                    device_id, {interface_info: payload.get("value")}
-                )
-            elif event_type == "status":
-                online = payload.get("online")
-                if not isinstance(online, bool):
-                    raise ValueError("status event has no boolean online value")
-                self._coordinator.async_apply_device_event(
-                    device_id, None, is_online=online
-                )
-            elif event_type == "device_added":
-                payload_device_id = payload.get("deviceId")
-                if payload_device_id != device_id:
-                    raise ValueError(
-                        "device_added payload deviceId does not match event deviceId"
-                    )
-                self._schedule_entry_reload()
-            elif event_type == "device_removed":
-                self._remove_device_from_registries(device_id)
-                self._schedule_entry_reload()
-            else:
-                _LOGGER.debug("Ignoring unknown Beatbot event type %s", event_type)
-        except (ValueError, TypeError) as err:
-            _LOGGER.warning("Ignoring malformed Beatbot event: %s", err)
+        if event_type == "properties_changed":
+            if not isinstance(payload, dict) or not isinstance(
+                interface_info := payload.get("interfaceInfo"), str
+            ):
+                _LOGGER.warning("Ignoring malformed Beatbot property event")
+                return
+            self._coordinator.async_apply_device_event(
+                device_id, {interface_info: payload.get("value")}
+            )
+        elif event_type == "status":
+            if not isinstance(payload, dict) or not isinstance(
+                online := payload.get("online"), bool
+            ):
+                _LOGGER.warning("Ignoring malformed Beatbot status event")
+                return
+            self._coordinator.async_apply_device_event(
+                device_id, None, is_online=online
+            )
+        elif event_type == "device_added":
+            if not isinstance(payload, dict) or payload.get("deviceId") != device_id:
+                _LOGGER.warning("Ignoring malformed Beatbot device-added event")
+                return
+            self._schedule_entry_reload()
+        elif event_type == "device_removed":
+            self._remove_device_from_registries(device_id)
+            self._schedule_entry_reload()
+        else:
+            _LOGGER.debug("Ignoring unknown Beatbot event type %s", event_type)
 
     def _schedule_entry_reload(self) -> None:
         """Reload all platforms after the account's device set changes."""

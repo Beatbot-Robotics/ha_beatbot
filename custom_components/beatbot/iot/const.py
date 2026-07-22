@@ -1,3 +1,7 @@
+"""Constants for the Beatbot integration."""
+
+from homeassistant.const import Platform
+
 DOMAIN: str = "beatbot"
 DEFAULT_NAME: str = "Beatbot"
 
@@ -17,12 +21,12 @@ SPEC_STD_LIB_EFFECTIVE_TIME = 3600 * 24 * 14
 # seconds, 14 days
 MANUFACTURER_EFFECTIVE_TIME = 3600 * 24 * 14
 
-SUPPORTED_PLATFORMS: list = [
-    "binary_sensor",
-    "select",
-    "sensor",
-    "switch",
-    "vacuum",
+SUPPORTED_PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.VACUUM,
 ]
 
 SUPPORTED_PRODUCT_CATEGORIES: set[str] = {"pool_clean_bot", "clean_base_station"}

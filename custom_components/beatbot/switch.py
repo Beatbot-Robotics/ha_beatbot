@@ -3,19 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from . import BeatbotConfigEntry
 from .coordinator import BeatbotCoordinator
 from .entity import BeatbotEntity
-from .iot.const import (
-    INTERFACE_CHILD_LOCK,
-    INTERFACE_VOICE_DISTURB,
-)
+from .iot.const import INTERFACE_CHILD_LOCK, INTERFACE_VOICE_DISTURB
 
 
 @dataclass(frozen=True)
 class BeatbotSwitchDescription:
+    """Describe a Beatbot switch capability."""
+
     interface_info: str
     data_field: str
     translation_key: str
@@ -36,6 +39,7 @@ class BeatbotSwitch(BeatbotEntity, SwitchEntity):
         device_id: str,
         description: BeatbotSwitchDescription,
     ) -> None:
+        """Initialize a Beatbot switch."""
         super().__init__(coordinator, device_id)
         self._description = description
         self._attr_unique_id = f"{device_id}_{description.data_field}"
@@ -43,17 +47,21 @@ class BeatbotSwitch(BeatbotEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
+        """Return whether the switch can be controlled."""
         return self.data.is_online and self.coordinator.last_update_success
 
     @property
     def is_on(self) -> bool:
+        """Return the switch state."""
         value = getattr(self.data, self._description.data_field)
-        return value is True or value == 1 or value == "on"
+        return value is True or value in {1, "on"}
 
-    async def async_turn_on(self, **kwargs) -> None:
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on the switch."""
         await self._async_set_enabled("on")
 
-    async def async_turn_off(self, **kwargs) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off the switch."""
         await self._async_set_enabled("off")
 
     async def _async_set_enabled(self, enabled: str) -> None:
@@ -67,7 +75,12 @@ class BeatbotSwitch(BeatbotEntity, SwitchEntity):
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: BeatbotConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up Beatbot switches."""
     coordinator = entry.runtime_data.coordinator
     entities = []
     for device_id, device in coordinator.data.items():

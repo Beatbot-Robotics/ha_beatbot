@@ -1,20 +1,27 @@
+"""Binary sensors for the Beatbot integration."""
+
 from homeassistant.components.binary_sensor import (
-    BinarySensorEntity,
     BinarySensorDeviceClass,
+    BinarySensorEntity,
 )
 from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from . import BeatbotConfigEntry
+from .coordinator import BeatbotCoordinator
 from .entity import BeatbotEntity
 from .iot.category import (
     CATEGORY_MAP,
     CHARGING_STATUS_CODES_BY_CATEGORY,
     ERROR_BITS_BY_CATEGORY,
 )
-from .coordinator import BeatbotCoordinator
 
 
 class BeatbotOnlineSensor(BeatbotEntity, BinarySensorEntity):
+    """Represent the device cloud connectivity state."""
+
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "online"
@@ -24,11 +31,13 @@ class BeatbotOnlineSensor(BeatbotEntity, BinarySensorEntity):
         coordinator: BeatbotCoordinator,
         device_id: str,
     ) -> None:
+        """Initialize the connectivity sensor."""
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}_online"
 
     @property
     def is_on(self) -> bool:
+        """Return whether the device is online."""
         return self.data.is_online
 
 
@@ -52,16 +61,19 @@ class BeatbotChargingSensor(BeatbotEntity, BinarySensorEntity):
         device_id: str,
         charging_codes: frozenset[int] | set[int],
     ) -> None:
+        """Initialize the charging sensor."""
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}_charging"
         self._charging_codes = charging_codes
 
     @property
     def available(self) -> bool:
+        """Return whether charging state is available."""
         return self.data.is_online and self.coordinator.last_update_success
 
     @property
     def is_on(self) -> bool:
+        """Return whether the device is charging."""
         return self.data.work_status in self._charging_codes
 
 
@@ -74,7 +86,9 @@ _OBSOLETE_BIT_KEYS: frozenset[str] = frozenset(
 _OBSOLETE_ERROR_ENTITY_SUFFIXES: frozenset[str] = _OBSOLETE_BIT_KEYS | {"error_bit"}
 
 
-def _remove_obsolete_error_entities(hass, entry) -> None:
+def _remove_obsolete_error_entities(
+    hass: HomeAssistant, entry: BeatbotConfigEntry
+) -> None:
     """Drop registry entries for obsolete binary_sensor error-bit entities.
 
     Matches by suffix (unique_id was f"{device_id}_{key}") rather than against
@@ -93,13 +107,19 @@ def _remove_obsolete_error_entities(hass, entry) -> None:
             registry.async_remove(reg_entry.entity_id)
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: BeatbotConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up Beatbot binary sensors."""
     coordinator = entry.runtime_data.coordinator
     _remove_obsolete_error_entities(hass, entry)
-    entities = []
+    entities: list[BinarySensorEntity] = []
     for device_id, device in coordinator.data.items():
         entities.append(BeatbotOnlineSensor(coordinator, device_id))
         category = CATEGORY_MAP.get(device.product_category)
+        assert category is not None
         charging_codes = CHARGING_STATUS_CODES_BY_CATEGORY.get(category, set())
         if charging_codes:
             entities.append(

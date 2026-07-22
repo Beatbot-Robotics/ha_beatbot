@@ -24,8 +24,8 @@
       "oauth_error": "OAuth 服务器返回了无效令牌。",
       "user_rejected_authorize": "您已拒绝授权：{error}。",
       "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
-      "missing_credentials": "[%key:common::config_flow::abort::missing_credentials%]",
-      "missing_configuration": "[%key:common::config_flow::abort::missing_configuration%]",
+      "missing_credentials": "[%key:common::config_flow::abort::oauth2_missing_credentials%]",
+      "missing_configuration": "[%key:common::config_flow::abort::oauth2_missing_configuration%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
       "unknown_region": "Beatbot 账号未返回受支持的区域。请确认账号已开通受支持的区域（cn、na、eu）后重试。"
     },

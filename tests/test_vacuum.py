@@ -225,7 +225,7 @@ async def test_vacuum_action_triggers_single_device_refresh() -> None:
     """A control command must refresh only the controlled device's state,
     not run the full discovery + batch-state refresh.
     """
-    coordinator = _make_coordinator("VACUUM_CLEANER")
+    coordinator = _make_coordinator("pool_clean_bot")
     coordinator.api = SimpleNamespace(
         send_action=AsyncMock(),
     )

@@ -5,7 +5,10 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from . import BeatbotConfigEntry
 from .coordinator import BeatbotCoordinator
 from .entity import BeatbotEntity
 
@@ -18,6 +21,7 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
     _attr_translation_key = "work_mode"
 
     def __init__(self, coordinator: BeatbotCoordinator, device_id: str) -> None:
+        """Initialize the work-mode select."""
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}_work_mode"
         self._attr_options = list(self.data.work_mode_options.values())
@@ -27,10 +31,12 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
 
     @property
     def available(self) -> bool:
+        """Return whether the work mode can be controlled."""
         return self.data.is_online and self.coordinator.last_update_success
 
     @property
     def current_option(self) -> str | None:
+        """Return the active work-mode label."""
         return self.data.work_mode_options.get(self.data.work_mode)
 
     async def async_select_option(self, option: str) -> None:
@@ -61,7 +67,12 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: BeatbotConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up Beatbot work-mode selects."""
     coordinator = entry.runtime_data.coordinator
     async_add_entities(
         BeatbotWorkModeSelect(coordinator, device_id)

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import base64
 import binascii
+from collections.abc import Mapping
 import json
 import logging
 from typing import Any
 
-import voluptuous as vol
 from beatbot_cloud.const import (
     OAUTH2_AUTHORIZE_URL,
     OAUTH2_CLIENT_ID,
@@ -16,6 +16,7 @@ from beatbot_cloud.const import (
     OAUTH2_TOKEN_URL,
     REGION_API_BASE_URL,
 )
+import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.config_entries import SOURCE_REAUTH
@@ -55,6 +56,7 @@ class BeatbotOAuth2Implementation(
     """Local OAuth2 implementation for Beatbot using HA's built-in PKCE support."""
 
     def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the Beatbot OAuth2 implementation."""
         super().__init__(
             hass,
             DOMAIN,
@@ -65,6 +67,7 @@ class BeatbotOAuth2Implementation(
 
     @property
     def name(self) -> str:
+        """Return the OAuth2 implementation name."""
         return "Beatbot"
 
     @property
@@ -85,6 +88,7 @@ class BeatbotConfigFlow(
 
     @property
     def logger(self) -> logging.Logger:
+        """Return the flow logger."""
         return _LOGGER
 
     async def _async_register_implementation(self) -> None:
@@ -105,7 +109,7 @@ class BeatbotConfigFlow(
         return await self.async_step_pick_implementation(user_input)
 
     async def async_step_reauth(
-        self, entry_data: dict[str, Any] | None = None
+        self, entry_data: Mapping[str, Any]
     ) -> config_entries.ConfigFlowResult:
         """Perform reauth upon an authentication failure."""
         await self._async_register_implementation()

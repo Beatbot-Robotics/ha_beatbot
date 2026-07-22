@@ -24,8 +24,8 @@
       "oauth_error": "Le serveur OAuth a renvoye un jeton non valide.",
       "user_rejected_authorize": "Vous avez refuse l'autorisation : {error}.",
       "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
-      "missing_credentials": "[%key:common::config_flow::abort::missing_credentials%]",
-      "missing_configuration": "[%key:common::config_flow::abort::missing_configuration%]",
+      "missing_credentials": "[%key:common::config_flow::abort::oauth2_missing_credentials%]",
+      "missing_configuration": "[%key:common::config_flow::abort::oauth2_missing_configuration%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
       "unknown_region": "Le compte Beatbot n'a pas indique de region prise en charge. Assurez-vous que le compte est provisionne pour une region prise en charge (cn, na, eu), puis reessayez."
     },

@@ -6,9 +6,9 @@ import logging
 from typing import Any
 
 from beatbot_cloud import (
-    BeatbotAuthenticationError as BeatbotAuthenticationError,
+    BeatbotAuthenticationError,
     BeatbotClient,
-    BeatbotConnectionError as BeatbotConnectionError,
+    BeatbotConnectionError,
 )
 
 from homeassistant.config_entries import ConfigEntry
@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_entry_oauth2_flow
 
 BeatbotAuthError = BeatbotAuthenticationError
+__all__ = ["BeatbotAuthError", "BeatbotConnectionError"]
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -32,9 +33,11 @@ class BeatbotAPI(BeatbotClient):
         self._hass = hass
         self._entry = entry
         self._session = session
-        super().__init__(entry.data.get("region"), self._async_request)
+        if not isinstance(region := entry.data.get("region"), str):
+            raise TypeError("Beatbot config entry has no region")
+        super().__init__(region, self._async_request)
 
-    async def _async_request(self, method: str, url: str, **kwargs):
+    async def _async_request(self, method: str, url: str, **kwargs: Any):
         """Forward a request through Home Assistant's refreshing OAuth session."""
         return await self._session.async_request(method, url, **kwargs)
 

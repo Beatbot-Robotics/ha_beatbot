@@ -24,8 +24,8 @@
       "oauth_error": "OAuth server vratil neplatny token.",
       "user_rejected_authorize": "Odmitl jsi autorizaci: {error}.",
       "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
-      "missing_credentials": "[%key:common::config_flow::abort::missing_credentials%]",
-      "missing_configuration": "[%key:common::config_flow::abort::missing_configuration%]",
+      "missing_credentials": "[%key:common::config_flow::abort::oauth2_missing_credentials%]",
+      "missing_configuration": "[%key:common::config_flow::abort::oauth2_missing_configuration%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
       "unknown_region": "Ucet Beatbot neoznamil podporovanou oblast. Ujisti se, ze je ucet pripraven pro podporovanou oblast (cn, na, eu), a zkus to znovu."
     },

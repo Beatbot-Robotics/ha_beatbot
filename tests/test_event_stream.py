@@ -8,14 +8,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from beatbot_cloud import BeatbotConnectionError
-
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
 
 from custom_components.beatbot.iot.event_stream import (
     BeatbotEventClient,
-    _ConnectionReplaced,
     _RefreshToken,
 )
 
@@ -183,18 +179,8 @@ async def test_stop_is_idempotent(hass: HomeAssistant) -> None:
     await client.async_stop()
 
 
-def test_close_codes_have_distinct_policies() -> None:
-    with pytest.raises(_RefreshToken):
-        BeatbotEventClient._raise_for_close_code(4001, "secret", None)
-    with pytest.raises(_ConnectionReplaced):
-        BeatbotEventClient._raise_for_close_code(4002, "secret", None)
-    with pytest.raises(ConfigEntryAuthFailed):
-        BeatbotEventClient._raise_for_close_code(4003, "secret", None)
-    with pytest.raises(BeatbotConnectionError):
-        BeatbotEventClient._raise_for_close_code(4008, "secret", None)
-
-
 async def test_rejected_token_is_refreshed_only_once(hass: HomeAssistant) -> None:
+    """Refresh a rejected access token only once."""
     entry = SimpleNamespace(
         entry_id="entry",
         data={"token": {"access_token": "old", "refresh_token": "refresh"}},
@@ -204,11 +190,14 @@ async def test_rejected_token_is_refreshed_only_once(hass: HomeAssistant) -> Non
             return_value={"access_token": "new", "refresh_token": "refresh"}
         )
     )
-    oauth_session = SimpleNamespace(
-        token=entry.data["token"],
-        implementation=implementation,
-        _token_lock=asyncio.Lock(),
-    )
+    oauth_session = SimpleNamespace(token=entry.data["token"])
+
+    async def _ensure_token_valid() -> None:
+        new_token = await implementation.async_refresh_token(oauth_session.token)
+        entry.data = {"token": new_token}
+        oauth_session.token = new_token
+
+    oauth_session.async_ensure_token_valid = AsyncMock(side_effect=_ensure_token_valid)
     client = BeatbotEventClient(
         hass,
         entry,
@@ -225,50 +214,6 @@ async def test_rejected_token_is_refreshed_only_once(hass: HomeAssistant) -> Non
     await client._async_refresh_token_once("old")
 
     implementation.async_refresh_token.assert_awaited_once()
-
-
-async def test_event_refresh_shares_oauth_session_rotation_lock(
-    hass: HomeAssistant,
-) -> None:
-    """A REST refresh wins without WebSocket reusing the rotated token."""
-    entry = SimpleNamespace(
-        entry_id="entry",
-        data={"token": {"access_token": "old", "refresh_token": "refresh-old"}},
-    )
-    implementation = SimpleNamespace(async_refresh_token=AsyncMock())
-    token_lock = asyncio.Lock()
-    oauth_session = SimpleNamespace(
-        token=entry.data["token"],
-        implementation=implementation,
-        _token_lock=token_lock,
-    )
-    client = BeatbotEventClient(
-        hass,
-        entry,
-        oauth_session,
-        SimpleNamespace(event_stream_url="ws://example/events"),
-        Mock(),
-    )
-
-    async with token_lock:
-        websocket_refresh = asyncio.create_task(client._async_refresh_token_once("old"))
-        await asyncio.sleep(0)
-        implementation.async_refresh_token.assert_not_awaited()
-
-        # Simulate the REST OAuth2Session completing rotation while it owns
-        # the same lock. The WebSocket path must observe and keep this token.
-        entry.data = {
-            "token": {
-                "access_token": "new",
-                "refresh_token": "refresh-new",
-            }
-        }
-        oauth_session.token = entry.data["token"]
-
-    await websocket_refresh
-
-    implementation.async_refresh_token.assert_not_awaited()
-    assert entry.data["token"]["refresh_token"] == "refresh-new"
 
 
 async def test_repeated_handshake_401_starts_reauth(hass: HomeAssistant) -> None:

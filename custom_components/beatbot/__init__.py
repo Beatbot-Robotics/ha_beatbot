@@ -10,8 +10,7 @@ from homeassistant.helpers import config_entry_oauth2_flow
 from .api import BeatbotAPI
 from .config_flow import BeatbotOAuth2Implementation
 from .coordinator import BeatbotCoordinator
-from .iot.const import DOMAIN
-from .iot.const import SUPPORTED_PLATFORMS
+from .iot.const import DOMAIN, SUPPORTED_PLATFORMS
 from .iot.event_stream import BeatbotEventClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,7 +71,4 @@ async def async_unload_entry(hass: HomeAssistant, entry: BeatbotConfigEntry) -> 
     # window before tearing down the coordinator/api/session they close over.
     await entry.runtime_data.event_client.async_stop()
     entry.runtime_data.coordinator.async_cancel_pending_refreshes()
-    unload_ok = await hass.config_entries.async_unload_platforms(
-        entry, SUPPORTED_PLATFORMS
-    )
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS)

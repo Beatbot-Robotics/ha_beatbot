@@ -21,18 +21,20 @@ from .iot.const import DOMAIN
 from .models import BeatbotDeviceData
 
 
-class BeatbotEntity(CoordinatorEntity):
+class BeatbotEntity(CoordinatorEntity[BeatbotCoordinator]):
     """Common base: device metadata + per-device data accessor."""
 
     _attr_should_poll = False
     _attr_has_entity_name = True
 
     def __init__(self, coordinator: BeatbotCoordinator, device_id: str) -> None:
+        """Initialize a Beatbot entity."""
         super().__init__(coordinator)
         self._device_id = device_id
 
     @property
     def data(self) -> BeatbotDeviceData:
+        """Return the latest data for this device."""
         return self.coordinator.data[self._device_id]
 
     async def _async_send_command(self, coro: Any) -> None:
@@ -74,6 +76,7 @@ class BeatbotEntity(CoordinatorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        """Return device registry information."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
             name=self.data.name or None,

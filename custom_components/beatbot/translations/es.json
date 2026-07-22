@@ -24,8 +24,8 @@
       "oauth_error": "El servidor OAuth devolvio un token no valido.",
       "user_rejected_authorize": "Has rechazado la autorizacion: {error}.",
       "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
-      "missing_credentials": "[%key:common::config_flow::abort::missing_credentials%]",
-      "missing_configuration": "[%key:common::config_flow::abort::missing_configuration%]",
+      "missing_credentials": "[%key:common::config_flow::abort::oauth2_missing_credentials%]",
+      "missing_configuration": "[%key:common::config_flow::abort::oauth2_missing_configuration%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",
       "unknown_region": "La cuenta Beatbot no informo una region compatible. Asegurate de que la cuenta este aprovisionada para una region compatible (cn, na, eu) e intentalo de nuevo."
     },

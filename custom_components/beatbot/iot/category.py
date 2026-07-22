@@ -1,3 +1,5 @@
+"""Beatbot product category mappings."""
+
 from enum import StrEnum
 
 from homeassistant.components.vacuum import VacuumActivity, VacuumEntityFeature
@@ -12,6 +14,8 @@ from .const import (
 
 
 class ProductCategory(StrEnum):
+    """Supported Beatbot product categories."""
+
     POOL_CLEAN_BOT = "pool_clean_bot"
     CLEAN_BASE_STATION = "clean_base_station"
     LAWN_MOWER = "lawn_mower"

@@ -1,12 +1,13 @@
+"""Data coordinator for the Beatbot integration."""
+
 import asyncio
-import logging
 from datetime import timedelta
+import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import BeatbotAPI, BeatbotAuthError, BeatbotConnectionError
@@ -26,12 +27,15 @@ _MISSING_DEVICE_CONFIRMATIONS = 3
 
 
 class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
+    """Coordinate Beatbot cloud data and device reconciliation."""
+
     def __init__(
         self,
         hass: HomeAssistant,
         api: BeatbotAPI,
         config_entry: ConfigEntry | None = None,
     ) -> None:
+        """Initialize the Beatbot coordinator."""
         super().__init__(
             hass,
             logger=_LOGGER,
@@ -192,15 +196,16 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         """Reload platforms once after a confirmed topology change."""
         if self._entry_id is None or self._reload_scheduled:
             return
+        entry_id = self._entry_id
         self._reload_scheduled = True
 
         async def _reload() -> None:
             try:
-                await self.hass.config_entries.async_reload(self._entry_id)
+                await self.hass.config_entries.async_reload(entry_id)
             finally:
                 self._reload_scheduled = False
 
-        self.hass.async_create_task(_reload(), f"beatbot_reconcile_{self._entry_id}")
+        self.hass.async_create_task(_reload(), f"beatbot_reconcile_{entry_id}")
 
     async def async_refresh_device_state(self, device_id: str) -> None:
         """Fetch state for one device and push it to entities immediately.

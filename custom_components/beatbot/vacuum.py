@@ -1,25 +1,27 @@
+"""Vacuum entities for the Beatbot integration."""
+
+from typing import Any
+
 from homeassistant.components.vacuum import (
     StateVacuumEntity,
     VacuumActivity,
     VacuumEntityFeature,
 )
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from . import BeatbotConfigEntry
+from .coordinator import BeatbotCoordinator
 from .entity import BeatbotEntity
 from .iot.category import (
     CATEGORY_MAP,
-    ProductCategory,
     STATUS_MAP_BY_CATEGORY,
     VACUUM_ERROR_MASK_BY_CATEGORY,
     VACUUM_FEATURES_BY_CATEGORY,
+    ProductCategory,
     vacuum_features_from_capabilities,
 )
-from .iot.const import (
-    INTERFACE_PAUSE,
-    INTERFACE_RETURN_TO_BASE,
-    INTERFACE_START,
-)
-
-from .coordinator import BeatbotCoordinator
+from .iot.const import INTERFACE_PAUSE, INTERFACE_RETURN_TO_BASE, INTERFACE_START
 
 VACUUM_TRANSLATION_KEYS = {
     ProductCategory.POOL_CLEAN_BOT: "beatbot_pool_vacuum",
@@ -29,16 +31,20 @@ VACUUM_TRANSLATION_KEYS = {
 
 
 class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
+    """Represent a Beatbot cleaner as a vacuum entity."""
+
     def __init__(
         self,
         coordinator: BeatbotCoordinator,
         device_id: str,
     ) -> None:
+        """Initialize the Beatbot vacuum."""
         super().__init__(coordinator, device_id)
         self._attr_unique_id = device_id
         category = CATEGORY_MAP.get(
             self.coordinator.data[self._device_id].product_category
         )
+        assert category is not None
         if translation_key := VACUUM_TRANSLATION_KEYS.get(category):
             self._attr_translation_key = translation_key
         # Actions are exposed only when explicitly advertised by the device.
@@ -54,34 +60,44 @@ class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
 
     @property
     def activity(self) -> VacuumActivity:
+        """Return the current vacuum activity."""
         if self.data.error_code & self._error_mask:
             return VacuumActivity.ERROR
         return self._status_map.get(self.data.work_status, VacuumActivity.IDLE)
 
     @property
     def available(self) -> bool:
+        """Return whether the vacuum can be controlled."""
         return self.data.is_online and self.coordinator.last_update_success
 
     async def async_start(self) -> None:
+        """Start cleaning."""
         await self._async_send_command(
             self.coordinator.api.send_action(self._device_id, INTERFACE_START)
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
     async def async_pause(self) -> None:
+        """Pause cleaning."""
         await self._async_send_command(
             self.coordinator.api.send_action(self._device_id, INTERFACE_PAUSE)
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
-    async def async_return_to_base(self) -> None:
+    async def async_return_to_base(self, **kwargs: Any) -> None:
+        """Return the cleaner to its base."""
         await self._async_send_command(
             self.coordinator.api.send_action(self._device_id, INTERFACE_RETURN_TO_BASE)
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: BeatbotConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up Beatbot vacuum entities."""
     coordinator = entry.runtime_data.coordinator
     async_add_entities(
         BeatbotPoolVacuum(coordinator, device_id) for device_id in coordinator.data

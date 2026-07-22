@@ -40,10 +40,15 @@ def test_api_base_url_resolves_by_region(region: str, expected_base: str) -> Non
     assert api._base_url == expected_base
 
 
-@pytest.mark.parametrize("region", [None, "unknown-region"])
-def test_api_rejects_missing_or_unknown_region(region: str | None) -> None:
+@pytest.mark.parametrize(
+    ("region", "error"),
+    [(None, TypeError), ("unknown-region", ValueError)],
+)
+def test_api_rejects_missing_or_unknown_region(
+    region: str | None, error: type[Exception]
+) -> None:
     """A missing or unmapped region raises instead of silently falling back."""
-    with pytest.raises(ValueError):
+    with pytest.raises(error):
         _api_for_region(region)
 
 
