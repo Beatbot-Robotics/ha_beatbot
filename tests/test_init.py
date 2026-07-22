@@ -88,7 +88,9 @@ async def test_async_unload_entry_stops_events_and_unloads_platforms(
     with (
         patch("custom_components.beatbot.BeatbotAPI", return_value=Mock()),
         patch("custom_components.beatbot.BeatbotCoordinator", return_value=coordinator),
-        patch("custom_components.beatbot.BeatbotEventClient", return_value=event_client),
+        patch(
+            "custom_components.beatbot.BeatbotEventClient", return_value=event_client
+        ),
     ):
         await async_setup_entry(hass, entry)
         assert await async_unload_entry(hass, entry) is True

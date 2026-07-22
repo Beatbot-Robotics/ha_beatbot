@@ -1,4 +1,7 @@
-from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
+from homeassistant.components.binary_sensor import (
+    BinarySensorEntity,
+    BinarySensorDeviceClass,
+)
 from homeassistant.const import EntityCategory
 from homeassistant.helpers import entity_registry as er
 
@@ -17,9 +20,9 @@ class BeatbotOnlineSensor(BeatbotEntity, BinarySensorEntity):
     _attr_translation_key = "online"
 
     def __init__(
-            self,
-            coordinator: BeatbotCoordinator,
-            device_id: str,
+        self,
+        coordinator: BeatbotCoordinator,
+        device_id: str,
     ) -> None:
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}_online"
@@ -44,10 +47,10 @@ class BeatbotChargingSensor(BeatbotEntity, BinarySensorEntity):
     _attr_translation_key = "charging"
 
     def __init__(
-            self,
-            coordinator: BeatbotCoordinator,
-            device_id: str,
-            charging_codes: frozenset[int] | set[int],
+        self,
+        coordinator: BeatbotCoordinator,
+        device_id: str,
+        charging_codes: frozenset[int] | set[int],
     ) -> None:
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}_charging"
@@ -84,7 +87,9 @@ def _remove_obsolete_error_entities(hass, entry) -> None:
         if reg_entry.domain != "binary_sensor":
             continue
         uid = reg_entry.unique_id or ""
-        if any(uid.endswith(f"_{suffix}") for suffix in _OBSOLETE_ERROR_ENTITY_SUFFIXES):
+        if any(
+            uid.endswith(f"_{suffix}") for suffix in _OBSOLETE_ERROR_ENTITY_SUFFIXES
+        ):
             registry.async_remove(reg_entry.entity_id)
 
 

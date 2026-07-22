@@ -9,20 +9,20 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-
-from homeassistant import config_entries
-from homeassistant.config_entries import SOURCE_REAUTH
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_entry_oauth2_flow
-
-from .iot.const import (
-    DOMAIN,
+from beatbot_cloud.const import (
     OAUTH2_AUTHORIZE_URL,
     OAUTH2_CLIENT_ID,
     OAUTH2_SCOPE,
     OAUTH2_TOKEN_URL,
     REGION_API_BASE_URL,
 )
+
+from homeassistant import config_entries
+from homeassistant.config_entries import SOURCE_REAUTH
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_entry_oauth2_flow
+
+from .iot.const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 

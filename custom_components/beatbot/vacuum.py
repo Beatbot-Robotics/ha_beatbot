@@ -30,9 +30,9 @@ VACUUM_TRANSLATION_KEYS = {
 
 class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
     def __init__(
-            self,
-            coordinator: BeatbotCoordinator,
-            device_id: str,
+        self,
+        coordinator: BeatbotCoordinator,
+        device_id: str,
     ) -> None:
         super().__init__(coordinator, device_id)
         self._attr_unique_id = device_id
@@ -45,9 +45,7 @@ class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
         # Devices without vacuum action capabilities remain STATE-only.
         features = vacuum_features_from_capabilities(self.data.capabilities)
         if features is None:
-            features = VACUUM_FEATURES_BY_CATEGORY.get(
-                category, VacuumEntityFeature(0)
-            )
+            features = VACUUM_FEATURES_BY_CATEGORY.get(category, VacuumEntityFeature(0))
         self._attr_supported_features = features
         self._status_map = STATUS_MAP_BY_CATEGORY.get(category, {})
         # Preserve the legacy "any non-zero code is an error" behavior for
@@ -78,9 +76,7 @@ class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
 
     async def async_return_to_base(self) -> None:
         await self._async_send_command(
-            self.coordinator.api.send_action(
-                self._device_id, INTERFACE_RETURN_TO_BASE
-            )
+            self.coordinator.api.send_action(self._device_id, INTERFACE_RETURN_TO_BASE)
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
@@ -88,6 +84,5 @@ class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = entry.runtime_data.coordinator
     async_add_entities(
-        BeatbotPoolVacuum(coordinator, device_id)
-        for device_id in coordinator.data
+        BeatbotPoolVacuum(coordinator, device_id) for device_id in coordinator.data
     )

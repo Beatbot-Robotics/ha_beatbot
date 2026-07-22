@@ -73,14 +73,17 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
                 _LOGGER.info(
                     "Skipping device %s (productId=%s): product category %r is "
                     "not supported by this integration",
-                    d.device_id, d.product_id, d.product_category,
+                    d.device_id,
+                    d.product_id,
+                    d.product_category,
                 )
                 continue
             if d.product_id not in SUPPORTED_PRODUCT_IDS:
                 _LOGGER.info(
                     "Skipping device %s: productId %r is not on the verified "
                     "allow-list (add it to SUPPORTED_PRODUCT_IDS to enable)",
-                    d.device_id, d.product_id,
+                    d.device_id,
+                    d.product_id,
                 )
                 continue
             result[d.device_id] = d
@@ -117,9 +120,7 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         return result
 
     @callback
-    def _reconcile_device_set(
-        self, result: dict[str, BeatbotDeviceData]
-    ) -> None:
+    def _reconcile_device_set(self, result: dict[str, BeatbotDeviceData]) -> None:
         """Reconcile successful discovery results with the active device set."""
         previous_data = self.data if isinstance(self.data, dict) else {}
         previous_ids = set(previous_data) | self._registered_device_ids()
@@ -199,9 +200,7 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
             finally:
                 self._reload_scheduled = False
 
-        self.hass.async_create_task(
-            _reload(), f"beatbot_reconcile_{self._entry_id}"
-        )
+        self.hass.async_create_task(_reload(), f"beatbot_reconcile_{self._entry_id}")
 
     async def async_refresh_device_state(self, device_id: str) -> None:
         """Fetch state for one device and push it to entities immediately.

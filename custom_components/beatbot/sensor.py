@@ -22,12 +22,16 @@ def _remove_obsolete_firmware_entity(hass, entry) -> None:
     """
     registry = er.async_get(hass)
     for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if reg_entry.domain == "sensor" and (reg_entry.unique_id or "").endswith("_firmware"):
+        if reg_entry.domain == "sensor" and (reg_entry.unique_id or "").endswith(
+            "_firmware"
+        ):
             registry.async_remove(reg_entry.entity_id)
 
 
 def _remove_unsupported_battery_entities(
-        hass, entry, device_ids: set[str],
+    hass,
+    entry,
+    device_ids: set[str],
 ) -> None:
     """Remove battery entities previously registered for mains-powered devices."""
     if not device_ids:
@@ -35,10 +39,7 @@ def _remove_unsupported_battery_entities(
     obsolete_unique_ids = {f"{device_id}_battery" for device_id in device_ids}
     registry = er.async_get(hass)
     for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if (
-                reg_entry.domain == "sensor"
-                and reg_entry.unique_id in obsolete_unique_ids
-        ):
+        if reg_entry.domain == "sensor" and reg_entry.unique_id in obsolete_unique_ids:
             registry.async_remove(reg_entry.entity_id)
 
 
@@ -48,9 +49,9 @@ class BeatbotStatusSensor(BeatbotEntity, SensorEntity):
     _attr_translation_key = "work_status"
 
     def __init__(
-            self,
-            coordinator: BeatbotCoordinator,
-            device_id: str,
+        self,
+        coordinator: BeatbotCoordinator,
+        device_id: str,
     ) -> None:
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}_status"
@@ -74,9 +75,9 @@ class BeatbotBatterySensor(BeatbotEntity, SensorEntity):
     _attr_translation_key = "battery"
 
     def __init__(
-            self,
-            coordinator: BeatbotCoordinator,
-            device_id: str,
+        self,
+        coordinator: BeatbotCoordinator,
+        device_id: str,
     ) -> None:
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}_battery"
@@ -102,10 +103,10 @@ class BeatbotErrorSensor(BeatbotEntity, SensorEntity):
     _attr_translation_key = "error"
 
     def __init__(
-            self,
-            coordinator: BeatbotCoordinator,
-            device_id: str,
-            bits: list[tuple[str, int]],
+        self,
+        coordinator: BeatbotCoordinator,
+        device_id: str,
+        bits: list[tuple[str, int]],
     ) -> None:
         super().__init__(coordinator, device_id)
         self._bits = bits
@@ -135,20 +136,16 @@ async def async_setup_entry(hass, entry, async_add_entities):
         for device_id, device in coordinator.data.items()
         if CATEGORY_MAP.get(device.product_category) not in BATTERY_CATEGORIES
     }
-    _remove_unsupported_battery_entities(
-        hass, entry, unsupported_battery_device_ids
-    )
+    _remove_unsupported_battery_entities(hass, entry, unsupported_battery_device_ids)
     entities = []
     for device_id in coordinator.data:
-        category = CATEGORY_MAP.get(
-            coordinator.data[device_id].product_category
-        )
+        category = CATEGORY_MAP.get(coordinator.data[device_id].product_category)
         entities.append(BeatbotStatusSensor(coordinator, device_id))
         if category in BATTERY_CATEGORIES:
             entities.append(BeatbotBatterySensor(coordinator, device_id))
         # Only expose the decoded error sensor when the device's category
         # actually has a bit map to decode against.
-        if (bits := ERROR_BITS_BY_CATEGORY.get(category, [])):
+        if bits := ERROR_BITS_BY_CATEGORY.get(category, []):
             entities.append(BeatbotErrorSensor(coordinator, device_id, bits))
     # for lawn mower add
     async_add_entities(entities)

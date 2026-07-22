@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
 from aiohttp import ClientError, ClientResponseError
 import pytest
@@ -17,7 +18,11 @@ from homeassistant.helpers.config_entry_oauth2_flow import (
 )
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.beatbot.config_flow import _decode_access_token
+from custom_components.beatbot.config_flow import (
+    BeatbotConfigFlow,
+    BeatbotOAuth2Implementation,
+    _decode_access_token,
+)
 from custom_components.beatbot.iot.const import DOMAIN
 
 REDIRECT_URI = "http://example.com/auth/external/callback"
@@ -35,6 +40,39 @@ REQUEST_INFO = SimpleNamespace(real_url="https://oauth.beatbot.com/oauth2/token"
 def test_decode_access_token_rejects_invalid_payload(token: str) -> None:
     """Malformed and non-object JWT payloads are rejected."""
     assert _decode_access_token(token) is None
+
+
+def test_oauth_implementation_metadata(hass: HomeAssistant) -> None:
+    """The built-in OAuth implementation exposes Beatbot metadata and scope."""
+    implementation = BeatbotOAuth2Implementation(hass)
+
+    assert implementation.name == "Beatbot"
+    assert implementation.extra_authorize_data["scope"] == "device:info"
+
+
+async def test_registers_local_implementation_when_missing(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A flow registers its local PKCE implementation when none exists."""
+    flow = BeatbotConfigFlow()
+    flow.hass = hass
+    register = Mock()
+    monkeypatch.setattr(
+        config_entry_oauth2_flow,
+        "async_get_implementations",
+        AsyncMock(return_value={}),
+    )
+    monkeypatch.setattr(
+        config_entry_oauth2_flow,
+        "async_register_implementation",
+        register,
+    )
+
+    await flow._async_register_implementation()
+
+    register.assert_called_once()
+    assert register.call_args.args[:2] == (hass, DOMAIN)
+    assert isinstance(register.call_args.args[2], BeatbotOAuth2Implementation)
 
 
 def _make_token(sub: str, *, nonce: str = "v1", region: str | None = None) -> dict:
@@ -117,7 +155,10 @@ async def _complete_external_auth(hass: HomeAssistant, flow_id: str) -> dict:
     """Drive the flow from the `auth` external step through to entry creation/abort."""
     result = await hass.config_entries.flow.async_configure(
         flow_id,
-        {"code": "mock-code", "state": {"flow_id": flow_id, "redirect_uri": REDIRECT_URI}},
+        {
+            "code": "mock-code",
+            "state": {"flow_id": flow_id, "redirect_uri": REDIRECT_URI},
+        },
     )
     # external_step_done -> need one more configure to run `creation`
     if result["type"] is FlowResultType.EXTERNAL_STEP_DONE:
@@ -136,7 +177,9 @@ async def _start_user_flow(hass: HomeAssistant) -> dict:
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
-async def test_user_flow_creates_entry_with_jwt_sub_unique_id(hass: HomeAssistant) -> None:
+async def test_user_flow_creates_entry_with_jwt_sub_unique_id(
+    hass: HomeAssistant,
+) -> None:
     """Initial user flow creates one entry with unique_id = JWT `sub`."""
     _register_mock_impl(hass, _make_token("account-1", region="cn"))
 
@@ -417,3 +460,36 @@ async def test_reauth_different_account_aborts_unique_id_mismatch(
     assert len(entries) == 1
     assert entries[0].entry_id == entry.entry_id
     assert entries[0].unique_id == "account-1"
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_reauth_aborts_unknown_region(hass: HomeAssistant) -> None:
+    """Reauthentication rejects a same-account token without a known region."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="account-1",
+        title="Beatbot",
+        source=SOURCE_USER,
+        data={"auth_implementation": DOMAIN, "token": _make_token("account-1")},
+    )
+    entry.add_to_hass(hass)
+    _register_mock_impl(hass, _make_token("account-1", nonce="new"))
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": SOURCE_REAUTH,
+            "entry_id": entry.entry_id,
+            "title_placeholders": {"name": entry.title},
+            "unique_id": entry.unique_id,
+        },
+        data=entry.data,
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"implementation": DOMAIN}
+    )
+    result = await _complete_external_auth(hass, result["flow_id"])
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unknown_region"

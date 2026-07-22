@@ -79,6 +79,4 @@ async def test_switch_sends_on_off_label(
     coordinator.api.set_switch.assert_awaited_once_with(
         DEVICE_ID, interface_info, expected_label
     )
-    coordinator.async_schedule_device_state_refresh.assert_called_once_with(
-        DEVICE_ID
-    )
+    coordinator.async_schedule_device_state_refresh.assert_called_once_with(DEVICE_ID)

@@ -55,7 +55,7 @@ STATUS_MAP_BY_CATEGORY: dict[ProductCategory, dict[int, VacuumActivity]] = {
         4: VacuumActivity.PAUSED,
         5: VacuumActivity.PAUSED,
     },
-    ProductCategory.LAWN_MOWER: {}
+    ProductCategory.LAWN_MOWER: {},
 }
 
 # work_status codes that mean the device is actively charging. Charging is
@@ -71,10 +71,12 @@ CHARGING_STATUS_CODES_BY_CATEGORY: dict[ProductCategory, set[int]] = {
 # Categories whose devices have their own battery. A clean base station may
 # report that the paired robot is charging in its work status, but the station
 # itself has neither a battery nor a charging state.
-BATTERY_CATEGORIES: frozenset[ProductCategory] = frozenset({
-    ProductCategory.POOL_CLEAN_BOT,
-    ProductCategory.LAWN_MOWER,
-})
+BATTERY_CATEGORIES: frozenset[ProductCategory] = frozenset(
+    {
+        ProductCategory.POOL_CLEAN_BOT,
+        ProductCategory.LAWN_MOWER,
+    }
+)
 
 # Sensor-facing display states: raw `work_status` code -> translation slug.
 # This is deliberately separate from STATUS_MAP_BY_CATEGORY above, which
@@ -171,9 +173,7 @@ ERROR_BITS_BY_CATEGORY: dict[ProductCategory, list[tuple[str, int]]] = {
         ("notice_clean_lever_not_reset", 1 << 23),
         ("notice_clean_done_normal", 1 << 24),
     ],
-    ProductCategory.LAWN_MOWER: [
-
-    ]
+    ProductCategory.LAWN_MOWER: [],
 }
 
 # Bits that should put the vacuum entity into the ERROR activity. Some devices
@@ -199,7 +199,7 @@ VACUUM_FEATURES_BY_CATEGORY: dict[ProductCategory, VacuumEntityFeature] = {
 
 
 def vacuum_features_from_capabilities(
-        capabilities: dict[str, BeatbotCapability],
+    capabilities: dict[str, BeatbotCapability],
 ) -> VacuumEntityFeature | None:
     """Derive vacuum features from the device's advertised capabilities.
 

@@ -22,12 +22,8 @@ class BeatbotSwitchDescription:
 
 
 SWITCH_DESCRIPTIONS = (
-    BeatbotSwitchDescription(
-        INTERFACE_CHILD_LOCK, "child_lock", "child_lock"
-    ),
-    BeatbotSwitchDescription(
-        INTERFACE_VOICE_DISTURB, "voice_disturb", "voice_disturb"
-    ),
+    BeatbotSwitchDescription(INTERFACE_CHILD_LOCK, "child_lock", "child_lock"),
+    BeatbotSwitchDescription(INTERFACE_VOICE_DISTURB, "voice_disturb", "voice_disturb"),
 )
 
 
@@ -55,10 +51,10 @@ class BeatbotSwitch(BeatbotEntity, SwitchEntity):
         return value is True or value == 1 or value == "on"
 
     async def async_turn_on(self, **kwargs) -> None:
-        await self._async_set_enabled('on')
+        await self._async_set_enabled("on")
 
     async def async_turn_off(self, **kwargs) -> None:
-        await self._async_set_enabled('off')
+        await self._async_set_enabled("off")
 
     async def _async_set_enabled(self, enabled: str) -> None:
         await self._async_send_command(
@@ -78,7 +74,5 @@ async def async_setup_entry(hass, entry, async_add_entities):
         for description in SWITCH_DESCRIPTIONS:
             capability = device.capabilities.get(description.interface_info)
             if capability is not None and not capability.non_controllable:
-                entities.append(
-                    BeatbotSwitch(coordinator, device_id, description)
-                )
+                entities.append(BeatbotSwitch(coordinator, device_id, description))
     async_add_entities(entities)

@@ -6,6 +6,7 @@ of relying on a single entity (the vacuum) to supply it. That way the
 device is populated correctly no matter which platform's entities load
 first or fail to load.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -81,8 +82,7 @@ class BeatbotEntity(CoordinatorEntity):
             # Show each firmware channel's version distinctly (e.g.
             # "ch1:0.0.80 ch2:0.0.80") rather than collapsing to one value.
             sw_version=" ".join(
-                f"ch{v.channel}:{v.version}"
-                for v in self.data.versions
-                if v.version
-            ) or None,
+                f"ch{v.channel}:{v.version}" for v in self.data.versions if v.version
+            )
+            or None,
         )

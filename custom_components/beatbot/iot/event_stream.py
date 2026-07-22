@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import asyncio
 from collections import OrderedDict
-import json
 import logging
 import random
 
-from aiohttp import ClientError, ClientWebSocketResponse, WSMsgType, WSServerHandshakeError
+from aiohttp import ClientError
+from beatbot_cloud import (
+    BeatbotAuthenticationError,
+    BeatbotConnectionError,
+    BeatbotConnectionReplacedError,
+    BeatbotEvent,
+    BeatbotEventStream,
+    BeatbotTokenRejectedError,
+)
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -33,17 +40,8 @@ _RECONNECT_DELAYS = (1.0, 2.0, 4.0, 8.0, 30.0, 60.0)
 _RECONNECT_JITTER = 0.2
 
 
-class _ConnectionReplaced(Exception):
-    """The server replaced this connection with a newer one."""
-
-
-class _RefreshToken(Exception):
-    """The server rejected the access token."""
-
-    def __init__(self, access_token: str, *, handshake: bool = False) -> None:
-        super().__init__("access token rejected")
-        self.access_token = access_token
-        self.handshake = handshake
+_ConnectionReplaced = BeatbotConnectionReplacedError
+_RefreshToken = BeatbotTokenRejectedError
 
 
 class BeatbotEventClient:
@@ -63,7 +61,7 @@ class BeatbotEventClient:
         self._api = api
         self._coordinator = coordinator
         self._task: asyncio.Task[None] | None = None
-        self._ws: ClientWebSocketResponse | None = None
+        self._stream: BeatbotEventStream | None = None
         self._stopping = False
         self._handshake_refresh_attempted = False
         self._has_connected = False
@@ -83,8 +81,8 @@ class BeatbotEventClient:
     async def async_stop(self) -> None:
         """Stop and close the stream. Safe to call repeatedly."""
         self._stopping = True
-        if self._ws is not None and not self._ws.closed:
-            await self._ws.close()
+        if self._stream is not None:
+            await self._stream.close()
         task, self._task = self._task, None
         if task is not None and task is not asyncio.current_task():
             task.cancel()
@@ -115,14 +113,19 @@ class BeatbotEventClient:
                         self._handshake_refresh_attempted = True
                     failures = 0
                     continue
-                except ConfigEntryAuthFailed:
+                except (BeatbotAuthenticationError, ConfigEntryAuthFailed):
                     _LOGGER.warning(
                         "Beatbot event stream authorization failed; "
                         "starting reauthentication"
                     )
                     self._entry.async_start_reauth(self._hass)
                     return
-                except (ClientError, asyncio.TimeoutError, ConnectionError) as err:
+                except (
+                    BeatbotConnectionError,
+                    ClientError,
+                    asyncio.TimeoutError,
+                    ConnectionError,
+                ) as err:
                     failures += 1
                     _LOGGER.warning("Beatbot event stream disconnected: %s", err)
                 except Exception:
@@ -137,9 +140,7 @@ class BeatbotEventClient:
                 )
                 await asyncio.sleep(delay)
         except ConfigEntryAuthFailed:
-            _LOGGER.warning(
-                "Beatbot token refresh failed; starting reauthentication"
-            )
+            _LOGGER.warning("Beatbot token refresh failed; starting reauthentication")
             self._entry.async_start_reauth(self._hass)
         finally:
             await self._async_close_connection()
@@ -161,8 +162,10 @@ class BeatbotEventClient:
                 )
                 return
             try:
-                new_token = await self._oauth_session.implementation.async_refresh_token(
-                    current_token
+                new_token = (
+                    await self._oauth_session.implementation.async_refresh_token(
+                        current_token
+                    )
                 )
             except Exception as err:
                 _LOGGER.warning(
@@ -188,53 +191,30 @@ class BeatbotEventClient:
         if not token:
             raise ConfigEntryAuthFailed("OAuth token has no access_token")
 
-        client = async_get_clientsession(self._hass)
+        stream = BeatbotEventStream(
+            async_get_clientsession(self._hass),
+            self._api.event_stream_url,
+            token,
+            heartbeat=EVENT_HEARTBEAT_INTERVAL,
+            receive_timeout=EVENT_HEARTBEAT_TIMEOUT,
+        )
+        self._stream = stream
         try:
-            async with client.ws_connect(
-                self._api.event_stream_url,
-                headers={"Authorization": f"Bearer {token}"},
-                heartbeat=EVENT_HEARTBEAT_INTERVAL,
-                autoping=True,
-            ) as ws:
-                self._ws = ws
-                # A completed upgrade proves that the refreshed token was
-                # accepted. A future handshake 401 may therefore use one new
-                # refresh attempt.
-                self._handshake_refresh_attempted = False
-                is_reconnect = self._has_connected
-                self._has_connected = True
-                _LOGGER.debug(
-                    "Connected to Beatbot event stream at %s", self._api.event_stream_url
-                )
-                if is_reconnect:
-                    # Events may have been lost while disconnected. Reconcile
-                    # discovery and all runtime state before consuming further
-                    # incremental updates.
-                    await self._coordinator.async_request_refresh()
-                while not self._stopping:
-                    message = await ws.receive(timeout=EVENT_HEARTBEAT_TIMEOUT)
-                    _LOGGER.debug(
-                        "WS received message type=%s data=%r", message.type, message.data
-                    )
-                    if message.type is WSMsgType.TEXT:
-                        self._handle_text_message(message.data)
-                    elif message.type in (
-                        WSMsgType.CLOSE,
-                        WSMsgType.CLOSED,
-                        WSMsgType.ERROR,
-                    ):
-                        error = ws.exception()
-                        self._raise_for_close_code(ws.close_code, token, error)
-        except WSServerHandshakeError as err:
-            if err.status == 401:
-                raise _RefreshToken(token, handshake=True) from err
-            if err.status == 403:
-                raise ConfigEntryAuthFailed from err
-            raise
+            await stream.connect()
+            self._handshake_refresh_attempted = False
+            is_reconnect = self._has_connected
+            self._has_connected = True
+            _LOGGER.debug(
+                "Connected to Beatbot event stream at %s", self._api.event_stream_url
+            )
+            if is_reconnect:
+                await self._coordinator.async_request_refresh()
+            while not self._stopping:
+                self._handle_event(await stream.receive())
         finally:
-            if self._ws is not None and not self._ws.closed:
-                await self._ws.close()
-            self._ws = None
+            await stream.close()
+            if self._stream is stream:
+                self._stream = None
 
     @staticmethod
     def _raise_for_close_code(
@@ -244,39 +224,35 @@ class BeatbotEventClient:
         _LOGGER.warning(
             "Beatbot event stream closed closeCode=%s deviceId=unknown", code
         )
-        if code == 4001:
-            raise _RefreshToken(access_token) from error
-        if code == 4002:
-            raise _ConnectionReplaced from error
-        if code == 4003:
-            raise ConfigEntryAuthFailed from error
-        raise ConnectionError(f"WebSocket closed with code {code}") from error
+        stream = object.__new__(BeatbotEventStream)
+        stream._access_token = access_token
+        try:
+            stream._raise_for_close_code(code, error)
+        except BeatbotTokenRejectedError:
+            raise
+        except BeatbotAuthenticationError as err:
+            raise ConfigEntryAuthFailed from err
 
     async def _async_close_connection(self) -> None:
         """Close and discard the current connection."""
-        ws, self._ws = self._ws, None
-        if ws is not None and not ws.closed:
-            await ws.close()
+        stream, self._stream = self._stream, None
+        if stream is not None:
+            await stream.close()
 
     def _handle_text_message(self, raw: str) -> None:
+        """Parse and dispatch one text event."""
         try:
-            event = json.loads(raw)
-            if not isinstance(event, dict):
-                raise ValueError("event is not an object")
-            event_id = event.get("eventId")
-            event_type = event.get("type")
-            device_id = event.get("deviceId")
-            payload = event.get("payload")
-            if not all(isinstance(value, str) and value for value in (
-                event_id, event_type, device_id
-            )):
-                raise ValueError("missing eventId, type, or deviceId")
-            if event_type == "device_removed":
-                if payload is not None:
-                    raise ValueError("device_removed payload is not null")
-            elif not isinstance(payload, dict):
-                raise ValueError("event payload is not an object")
+            self._handle_event(BeatbotEventStream.parse_event(raw))
+        except BeatbotConnectionError as err:
+            _LOGGER.warning("Ignoring malformed Beatbot event: %s", err)
 
+    def _handle_event(self, event: BeatbotEvent) -> None:
+        """Apply one validated event to Home Assistant state."""
+        try:
+            event_id = event.event_id
+            event_type = event.event_type
+            device_id = event.device_id
+            payload = event.payload
             if event_id in self._seen_event_ids:
                 return
             self._remember_event(event_id)
@@ -313,7 +289,7 @@ class BeatbotEventClient:
                 self._schedule_entry_reload()
             else:
                 _LOGGER.debug("Ignoring unknown Beatbot event type %s", event_type)
-        except (json.JSONDecodeError, ValueError, TypeError) as err:
+        except (ValueError, TypeError) as err:
             _LOGGER.warning("Ignoring malformed Beatbot event: %s", err)
 
     def _schedule_entry_reload(self) -> None:
@@ -335,9 +311,7 @@ class BeatbotEventClient:
     def _remove_device_from_registries(self, device_id: str) -> None:
         """Remove entities and the device registry entry after account removal."""
         device_registry = dr.async_get(self._hass)
-        device = device_registry.async_get_device(
-            identifiers={(DOMAIN, device_id)}
-        )
+        device = device_registry.async_get_device(identifiers={(DOMAIN, device_id)})
         if device is None:
             return
 

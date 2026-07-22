@@ -14,9 +14,7 @@ from custom_components.beatbot.iot.category import (
 from custom_components.beatbot.models import BeatbotDeviceData
 
 DEVICE_ID = "test-device-1"
-POOL_CODES = CHARGING_STATUS_CODES_BY_CATEGORY[
-    CATEGORY_MAP["pool_clean_bot"]
-]
+POOL_CODES = CHARGING_STATUS_CODES_BY_CATEGORY[CATEGORY_MAP["pool_clean_bot"]]
 
 
 def _make_coordinator(work_status: int, *, is_online: bool = True) -> SimpleNamespace:
@@ -37,7 +35,7 @@ def _make_coordinator(work_status: int, *, is_online: bool = True) -> SimpleName
 @pytest.mark.parametrize(
     ("work_status", "expected"),
     [
-        (2, True),   # charging
+        (2, True),  # charging
         (3, False),  # charge_done — not actively charging
         (5, False),  # cleaning
         (0, False),  # standby

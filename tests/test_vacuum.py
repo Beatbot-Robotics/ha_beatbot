@@ -57,7 +57,9 @@ def _make_coordinator(
         ("lawn_mower", {VacuumEntityFeature.STATE}),
     ],
 )
-def test_vacuum_no_deprecated_battery_feature(category: str, expected_features: set) -> None:
+def test_vacuum_no_deprecated_battery_feature(
+    category: str, expected_features: set
+) -> None:
     """Vacuum must not advertise the deprecated BATTERY feature."""
     vacuum = BeatbotPoolVacuum(_make_coordinator(category), DEVICE_ID)
 
@@ -85,9 +87,7 @@ def test_clean_base_station_notice_does_not_set_vacuum_error() -> None:
 
 def test_clean_base_station_uses_its_own_translation() -> None:
     """The station vacuum entity must not use the pool-cleaner name."""
-    vacuum = BeatbotPoolVacuum(
-        _make_coordinator("clean_base_station"), DEVICE_ID
-    )
+    vacuum = BeatbotPoolVacuum(_make_coordinator("clean_base_station"), DEVICE_ID)
 
     assert vacuum.translation_key == "beatbot_clean_base_station_vacuum"
 
@@ -139,11 +139,13 @@ def test_vacuum_features_derived_from_capabilities() -> None:
     """
     capabilities = {
         INTERFACE_VACUUM_STATE: BeatbotCapability(
-            interface_info=INTERFACE_VACUUM_STATE, retrievable=True,
+            interface_info=INTERFACE_VACUUM_STATE,
+            retrievable=True,
             non_controllable=True,
         ),
         INTERFACE_START: BeatbotCapability(
-            interface_info=INTERFACE_START, non_controllable=False,
+            interface_info=INTERFACE_START,
+            non_controllable=False,
         ),
     }
     vacuum = BeatbotPoolVacuum(
@@ -163,14 +165,17 @@ def test_vacuum_features_omit_missing_action() -> None:
     """No vacuum.start capability -> START must not be advertised."""
     capabilities = {
         INTERFACE_VACUUM_STATE: BeatbotCapability(
-            interface_info=INTERFACE_VACUUM_STATE, retrievable=True,
+            interface_info=INTERFACE_VACUUM_STATE,
+            retrievable=True,
             non_controllable=True,
         ),
         INTERFACE_PAUSE: BeatbotCapability(
-            interface_info=INTERFACE_PAUSE, non_controllable=False,
+            interface_info=INTERFACE_PAUSE,
+            non_controllable=False,
         ),
         INTERFACE_RETURN_TO_BASE: BeatbotCapability(
-            interface_info=INTERFACE_RETURN_TO_BASE, non_controllable=False,
+            interface_info=INTERFACE_RETURN_TO_BASE,
+            non_controllable=False,
         ),
     }
     vacuum = BeatbotPoolVacuum(
@@ -197,12 +202,14 @@ def test_vacuum_features_skip_readonly_action() -> None:
     """An action flagged non_controllable=True is read-only, not advertised."""
     capabilities = {
         INTERFACE_VACUUM_STATE: BeatbotCapability(
-            interface_info=INTERFACE_VACUUM_STATE, retrievable=True,
+            interface_info=INTERFACE_VACUUM_STATE,
+            retrievable=True,
             non_controllable=True,
         ),
         # Present but read-only: must NOT become a Start button.
         INTERFACE_START: BeatbotCapability(
-            interface_info=INTERFACE_START, non_controllable=True,
+            interface_info=INTERFACE_START,
+            non_controllable=True,
         ),
     }
     vacuum = BeatbotPoolVacuum(

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from beatbot_cloud import BeatbotConnectionError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -95,9 +96,7 @@ def test_property_event_routes_incremental_state(hass: HomeAssistant) -> None:
 def test_status_event_routes_online_state(hass: HomeAssistant) -> None:
     client, coordinator = _client(hass)
 
-    client._handle_text_message(
-        _event("event-2", "status", {"online": False})
-    )
+    client._handle_text_message(_event("event-2", "status", {"online": False}))
 
     coordinator.async_apply_device_event.assert_called_once_with(
         "dev-1", None, is_online=False
@@ -155,9 +154,7 @@ async def test_device_removed_with_null_payload_reloads_entry(
     client, coordinator = _client(hass)
     hass.config_entries.async_reload = AsyncMock(return_value=True)
 
-    client._handle_text_message(
-        _event("event-removed", "device_removed", None)
-    )
+    client._handle_text_message(_event("event-removed", "device_removed", None))
     await hass.async_block_till_done()
 
     hass.config_entries.async_reload.assert_awaited_once_with("entry")
@@ -173,9 +170,7 @@ async def test_malformed_device_lifecycle_events_do_not_reload(
     client._handle_text_message(
         _event("bad-added", "device_added", {"deviceId": "another-device"})
     )
-    client._handle_text_message(
-        _event("bad-removed", "device_removed", {})
-    )
+    client._handle_text_message(_event("bad-removed", "device_removed", {}))
     await hass.async_block_till_done()
 
     hass.config_entries.async_reload.assert_not_awaited()
@@ -195,7 +190,7 @@ def test_close_codes_have_distinct_policies() -> None:
         BeatbotEventClient._raise_for_close_code(4002, "secret", None)
     with pytest.raises(ConfigEntryAuthFailed):
         BeatbotEventClient._raise_for_close_code(4003, "secret", None)
-    with pytest.raises(ConnectionError):
+    with pytest.raises(BeatbotConnectionError):
         BeatbotEventClient._raise_for_close_code(4008, "secret", None)
 
 
@@ -256,9 +251,7 @@ async def test_event_refresh_shares_oauth_session_rotation_lock(
     )
 
     async with token_lock:
-        websocket_refresh = asyncio.create_task(
-            client._async_refresh_token_once("old")
-        )
+        websocket_refresh = asyncio.create_task(client._async_refresh_token_once("old"))
         await asyncio.sleep(0)
         implementation.async_refresh_token.assert_not_awaited()
 
@@ -314,7 +307,7 @@ async def test_reconnect_requests_full_refresh(hass: HomeAssistant) -> None:
     client._oauth_session.async_ensure_token_valid = AsyncMock()
     client._oauth_session.token = {"access_token": "token"}
     websocket = _WebSocket()
-    session = SimpleNamespace(ws_connect=Mock(return_value=websocket))
+    session = SimpleNamespace(ws_connect=AsyncMock(return_value=websocket))
 
     with patch(
         "custom_components.beatbot.iot.event_stream.async_get_clientsession",

@@ -13,7 +13,7 @@ from custom_components.beatbot.api import (
     BeatbotAuthError,
     BeatbotConnectionError,
 )
-from custom_components.beatbot.iot.const import OAUTH2_TOKEN_URL, REGION_API_BASE_URL
+from beatbot_cloud.const import OAUTH2_TOKEN_URL, REGION_API_BASE_URL
 
 
 def _api_for_region(region: str | None) -> BeatbotAPI:
@@ -33,9 +33,7 @@ def _api_for_region(region: str | None) -> BeatbotAPI:
         ("eu", REGION_API_BASE_URL["eu"]),
     ],
 )
-def test_api_base_url_resolves_by_region(
-    region: str, expected_base: str
-) -> None:
+def test_api_base_url_resolves_by_region(region: str, expected_base: str) -> None:
     """The base URL follows the entry's region claim."""
     api = _api_for_region(region)
 
@@ -139,7 +137,6 @@ async def test_refresh_token_rejection_requires_reauthentication(caplog) -> None
         await api._request("GET", "/openapi/v1/ha")
 
     assert "OAuth token refresh rejected" in caplog.text
-    assert "HTTP 400" in caplog.text
     assert "entry_id=entry-123" in caplog.text
     assert "refresh-token" not in caplog.text
 

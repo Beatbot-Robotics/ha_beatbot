@@ -4,6 +4,11 @@
 /.venv-py312-backup/
 __pycache__/
 *.pyc
+.coverage
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+/library/
 /config/*
 /config
 /.idea/pyLspTools.xml

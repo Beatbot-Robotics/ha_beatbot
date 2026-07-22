@@ -104,7 +104,8 @@ async def test_coordinator_empty_allow_list_drops_everything(
 
 
 async def test_device_event_overlays_state_without_resetting_poll(
-    hass: HomeAssistant, caplog,
+    hass: HomeAssistant,
+    caplog,
 ) -> None:
     """A push updates the existing device and only notifies listeners."""
     coordinator = BeatbotCoordinator(hass, SimpleNamespace())
@@ -304,7 +305,5 @@ async def test_poll_removes_registry_only_stale_device_after_three_misses(
 
     await coordinator._async_update_data()
 
-    coordinator._remove_device_from_registries.assert_called_once_with(
-        "dev-stale"
-    )
+    coordinator._remove_device_from_registries.assert_called_once_with("dev-stale")
     coordinator._schedule_entry_reload.assert_called_once()
