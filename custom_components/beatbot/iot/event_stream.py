@@ -1,26 +1,20 @@
-"""WebSocket event stream for incremental Beatbot cloud state updates."""
+"""Bridge Beatbot cloud events into Home Assistant."""
 
 from __future__ import annotations
 
 import asyncio
-from collections import OrderedDict
 from contextlib import suppress
 import logging
-import random
 
-from aiohttp import ClientError
 from beatbot_cloud import (
     BeatbotAuthenticationError,
-    BeatbotConnectionError,
-    BeatbotConnectionReplacedError,
+    BeatbotClient,
     BeatbotEvent,
-    BeatbotEventStream,
-    BeatbotTokenRejectedError,
+    BeatbotEventClient as BeatbotCloudEventClient,
 )
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import (
     config_entry_oauth2_flow,
     device_registry as dr,
@@ -28,54 +22,43 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from ..api import BeatbotAPI
+from ..api import async_get_access_token
 from ..coordinator import BeatbotCoordinator
-from .const import (
-    DOMAIN,
-    EVENT_DEDUP_CACHE_SIZE,
-    EVENT_HEARTBEAT_INTERVAL,
-    EVENT_HEARTBEAT_TIMEOUT,
-)
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-_RECONNECT_DELAYS = (1.0, 2.0, 4.0, 8.0, 30.0, 60.0)
-_RECONNECT_JITTER = 0.2
-
-
-_ConnectionReplaced = BeatbotConnectionReplacedError
-_RefreshToken = BeatbotTokenRejectedError
-
 
 class BeatbotEventClient:
-    """Maintain the account-scoped cloud event WebSocket."""
+    """Connect library events to Home Assistant state."""
 
     def __init__(
         self,
         hass: HomeAssistant,
         entry: ConfigEntry,
         oauth_session: config_entry_oauth2_flow.OAuth2Session,
-        api: BeatbotAPI,
+        api: BeatbotClient,
         coordinator: BeatbotCoordinator,
     ) -> None:
         """Initialize the Beatbot event client."""
         self._hass = hass
         self._entry = entry
         self._oauth_session = oauth_session
-        self._api = api
         self._coordinator = coordinator
         self._task: asyncio.Task[None] | None = None
-        self._stream: BeatbotEventStream | None = None
-        self._stopping = False
-        self._handshake_refresh_attempted = False
-        self._has_connected = False
-        self._seen_event_ids: OrderedDict[str, None] = OrderedDict()
+        self._client = BeatbotCloudEventClient(
+            async_get_clientsession(hass),
+            api.event_stream_url,
+            api.async_get_access_token,
+            self._handle_event,
+            reconnect_callback=coordinator.async_request_refresh,
+            token_refresh_callback=self._async_refresh_token,
+        )
         self._reload_scheduled = False
 
     def async_start(self) -> None:
         """Start the connection supervisor without blocking setup."""
         if self._task is None or self._task.done():
-            self._stopping = False
             self._task = self._entry.async_create_background_task(
                 self._hass,
                 self._run(),
@@ -84,9 +67,7 @@ class BeatbotEventClient:
 
     async def async_stop(self) -> None:
         """Stop and close the stream. Safe to call repeatedly."""
-        self._stopping = True
-        if self._stream is not None:
-            await self._stream.close()
+        await self._client.async_close()
         task, self._task = self._task, None
         if task is not None and task is not asyncio.current_task():
             task.cancel()
@@ -94,173 +75,49 @@ class BeatbotEventClient:
                 await task
 
     async def _run(self) -> None:
-        failures = 0
+        """Run the library event client until stopped or authentication fails."""
         try:
-            while not self._stopping:
-                try:
-                    await self._connect_and_receive()
-                except asyncio.CancelledError:
-                    raise
-                except _ConnectionReplaced:
-                    # 4002 is terminal. Reconnecting would make multiple HA
-                    # instances continuously evict one another.
-                    return
-                except _RefreshToken as err:
-                    if err.handshake and self._handshake_refresh_attempted:
-                        raise ConfigEntryAuthFailed(
-                            "WebSocket handshake still unauthorized after token refresh"
-                        ) from err
-                    await self._async_refresh_token_once(err.access_token)
-                    if err.handshake:
-                        self._handshake_refresh_attempted = True
-                    failures = 0
-                    continue
-                except (BeatbotAuthenticationError, ConfigEntryAuthFailed):
-                    _LOGGER.warning(
-                        "Beatbot event stream authorization failed; "
-                        "starting reauthentication"
-                    )
-                    self._entry.async_start_reauth(self._hass)
-                    return
-                except (
-                    TimeoutError,
-                    BeatbotConnectionError,
-                    ClientError,
-                    ConnectionError,
-                ) as err:
-                    failures += 1
-                    _LOGGER.warning("Beatbot event stream disconnected: %s", err)
-                except Exception:
-                    failures += 1
-                    _LOGGER.exception("Unexpected Beatbot event stream failure")
+            await self._client.async_run()
+        except BeatbotAuthenticationError:
+            _LOGGER.warning("Beatbot event stream authorization failed")
+            self._entry.async_start_reauth_if_available(self._hass)
 
-                if self._stopping:
-                    return
-                delay = _RECONNECT_DELAYS[min(failures - 1, len(_RECONNECT_DELAYS) - 1)]
-                delay *= random.uniform(
-                    1.0 - _RECONNECT_JITTER, 1.0 + _RECONNECT_JITTER
-                )
-                await asyncio.sleep(delay)
-        except ConfigEntryAuthFailed:
-            _LOGGER.warning("Beatbot token refresh failed; starting reauthentication")
-            self._entry.async_start_reauth(self._hass)
-        finally:
-            await self._async_close_connection()
-
-    async def _async_refresh_token_once(self, rejected_access_token: str) -> None:
+    async def _async_refresh_token(self, rejected_access_token: str) -> str:
         """Refresh a rejected token through the session's shared rotation lock."""
         current_token = self._oauth_session.token
-        if current_token.get("access_token") != rejected_access_token:
-            _LOGGER.debug(
-                "Skipping Beatbot OAuth refresh for an already replaced token "
-                "(entry_id=%s)",
-                self._entry.entry_id,
+        if current_token.get("access_token") == rejected_access_token:
+            self._hass.config_entries.async_update_entry(
+                self._entry,
+                data={
+                    **self._entry.data,
+                    "token": {**current_token, "expires_at": 0},
+                },
             )
-            return
-        self._hass.config_entries.async_update_entry(
-            self._entry,
-            data={
-                **self._entry.data,
-                "token": {**current_token, "expires_at": 0},
-            },
-        )
-        try:
-            await self._oauth_session.async_ensure_token_valid()
-        except Exception as err:
-            _LOGGER.warning(
-                "Beatbot OAuth refresh after event stream rejection failed "
-                "(entry_id=%s): %s",
-                self._entry.entry_id,
-                err,
-            )
-            raise ConfigEntryAuthFailed from err
-        _LOGGER.info(
-            "Beatbot OAuth token rotated after event stream rejection (entry_id=%s)",
-            self._entry.entry_id,
-        )
-
-    async def _connect_and_receive(self) -> None:
-        await self._oauth_session.async_ensure_token_valid()
-        token = self._oauth_session.token.get("access_token")
-        if not token:
-            raise ConfigEntryAuthFailed("OAuth token has no access_token")
-
-        stream = BeatbotEventStream(
-            async_get_clientsession(self._hass),
-            self._api.event_stream_url,
-            token,
-            heartbeat=EVENT_HEARTBEAT_INTERVAL,
-            receive_timeout=EVENT_HEARTBEAT_TIMEOUT,
-        )
-        self._stream = stream
-        try:
-            await stream.connect()
-            self._handshake_refresh_attempted = False
-            is_reconnect = self._has_connected
-            self._has_connected = True
-            _LOGGER.debug(
-                "Connected to Beatbot event stream at %s", self._api.event_stream_url
-            )
-            if is_reconnect:
-                await self._coordinator.async_request_refresh()
-            while not self._stopping:
-                self._handle_event(await stream.receive())
-        finally:
-            await stream.close()
-            if self._stream is stream:
-                self._stream = None
-
-    async def _async_close_connection(self) -> None:
-        """Close and discard the current connection."""
-        stream, self._stream = self._stream, None
-        if stream is not None:
-            await stream.close()
-
-    def _handle_text_message(self, raw: str) -> None:
-        """Parse and dispatch one text event."""
-        try:
-            self._handle_event(BeatbotEventStream.parse_event(raw))
-        except BeatbotConnectionError as err:
-            _LOGGER.warning("Ignoring malformed Beatbot event: %s", err)
+        return await async_get_access_token(self._oauth_session)
 
     def _handle_event(self, event: BeatbotEvent) -> None:
         """Apply one validated event to Home Assistant state."""
-        event_id = event.event_id
         event_type = event.event_type
         device_id = event.device_id
-        payload = event.payload
-        if event_id in self._seen_event_ids:
-            return
-        self._remember_event(event_id)
-        _LOGGER.info(
+        _LOGGER.debug(
             "Received Beatbot event eventId=%s deviceId=%s type=%s",
-            event_id,
+            event.event_id,
             device_id,
             event_type,
         )
 
         if event_type == "properties_changed":
-            if not isinstance(payload, dict) or not isinstance(
-                interface_info := payload.get("interfaceInfo"), str
-            ):
-                _LOGGER.warning("Ignoring malformed Beatbot property event")
-                return
+            assert event.payload is not None
             self._coordinator.async_apply_device_event(
-                device_id, {interface_info: payload.get("value")}
+                device_id,
+                {event.payload["interfaceInfo"]: event.payload["value"]},
             )
         elif event_type == "status":
-            if not isinstance(payload, dict) or not isinstance(
-                online := payload.get("online"), bool
-            ):
-                _LOGGER.warning("Ignoring malformed Beatbot status event")
-                return
+            assert event.payload is not None
             self._coordinator.async_apply_device_event(
-                device_id, None, is_online=online
+                device_id, None, is_online=event.payload["online"]
             )
         elif event_type == "device_added":
-            if not isinstance(payload, dict) or payload.get("deviceId") != device_id:
-                _LOGGER.warning("Ignoring malformed Beatbot device-added event")
-                return
             self._schedule_entry_reload()
         elif event_type == "device_removed":
             self._remove_device_from_registries(device_id)
@@ -270,22 +127,13 @@ class BeatbotEventClient:
 
     def _schedule_entry_reload(self) -> None:
         """Reload all platforms after the account's device set changes."""
-        if self._reload_scheduled or self._stopping:
+        if self._reload_scheduled:
             return
         self._reload_scheduled = True
-
-        async def _reload() -> None:
-            try:
-                await self._hass.config_entries.async_reload(self._entry.entry_id)
-            finally:
-                self._reload_scheduled = False
-
-        self._hass.async_create_task(
-            _reload(), f"beatbot_reload_{self._entry.entry_id}"
-        )
+        self._hass.config_entries.async_schedule_reload(self._entry.entry_id)
 
     def _remove_device_from_registries(self, device_id: str) -> None:
-        """Remove entities and the device registry entry after account removal."""
+        """Detach a removed device from this config entry."""
         device_registry = dr.async_get(self._hass)
         device = device_registry.async_get_device(identifiers={(DOMAIN, device_id)})
         if device is None:
@@ -297,10 +145,6 @@ class BeatbotEventClient:
         ):
             if entity.config_entry_id == self._entry.entry_id:
                 entity_registry.async_remove(entity.entity_id)
-        device_registry.async_remove_device(device.id)
-
-    def _remember_event(self, event_id: str) -> None:
-        self._seen_event_ids[event_id] = None
-        self._seen_event_ids.move_to_end(event_id)
-        while len(self._seen_event_ids) > EVENT_DEDUP_CACHE_SIZE:
-            self._seen_event_ids.popitem(last=False)
+        device_registry.async_update_device(
+            device.id, remove_config_entry_id=self._entry.entry_id
+        )

@@ -68,26 +68,28 @@ class BeatbotPoolVacuum(BeatbotEntity, StateVacuumEntity):
     @property
     def available(self) -> bool:
         """Return whether the vacuum can be controlled."""
-        return self.data.is_online and self.coordinator.last_update_success
+        return super().available and self.data.is_online
 
     async def async_start(self) -> None:
         """Start cleaning."""
         await self._async_send_command(
-            self.coordinator.api.send_action(self._device_id, INTERFACE_START)
+            lambda: self.coordinator.api.send_action(self._device_id, INTERFACE_START)
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
     async def async_pause(self) -> None:
         """Pause cleaning."""
         await self._async_send_command(
-            self.coordinator.api.send_action(self._device_id, INTERFACE_PAUSE)
+            lambda: self.coordinator.api.send_action(self._device_id, INTERFACE_PAUSE)
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 
     async def async_return_to_base(self, **kwargs: Any) -> None:
         """Return the cleaner to its base."""
         await self._async_send_command(
-            self.coordinator.api.send_action(self._device_id, INTERFACE_RETURN_TO_BASE)
+            lambda: self.coordinator.api.send_action(
+                self._device_id, INTERFACE_RETURN_TO_BASE
+            )
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)
 

@@ -4,13 +4,15 @@ import asyncio
 from datetime import timedelta
 import logging
 
+from beatbot_cloud import BeatbotClient, BeatbotDeviceData
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import BeatbotAPI, BeatbotAuthError, BeatbotConnectionError
+from .api import BeatbotAuthError, BeatbotConnectionError
 from .iot.category import CATEGORY_MAP
 from .iot.const import (
     DOMAIN,
@@ -19,8 +21,7 @@ from .iot.const import (
     SUPPORTED_PRODUCT_CATEGORIES,
     SUPPORTED_PRODUCT_IDS,
 )
-from .iot.mapping import HA_STATE_FIELD_MAP, apply_state
-from .models import BeatbotDeviceData
+from .iot.mapping import HA_STATE_FIELD_MAP
 
 _LOGGER = logging.getLogger(__name__)
 _MISSING_DEVICE_CONFIRMATIONS = 3
@@ -32,7 +33,7 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
     def __init__(
         self,
         hass: HomeAssistant,
-        api: BeatbotAPI,
+        api: BeatbotClient,
         config_entry: ConfigEntry | None = None,
     ) -> None:
         """Initialize the Beatbot coordinator."""
@@ -94,8 +95,7 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
 
         # Runtime state is best-effort: a connection failure must not wipe the
         # entities — keep discovery identity data and last-known values. An auth
-        # failure still escalates to reauth, since the token is invalid for both
-        # endpoints.
+        # failure still escalates as a config-entry authentication failure.
         try:
             states = await self.api.get_device_states()
         except BeatbotAuthError as err:
@@ -111,7 +111,10 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
                 len(states),
             )
 
+        previous_data = self.data if isinstance(self.data, dict) else {}
         for device_id, device in result.items():
+            if (previous_device := previous_data.get(device_id)) is not None:
+                device.copy_runtime_state_from(previous_device)
             if (state := states.get(device_id)) is not None:
                 self._apply_state_with_logging(
                     device_id,
@@ -126,10 +129,11 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
     @callback
     def _reconcile_device_set(self, result: dict[str, BeatbotDeviceData]) -> None:
         """Reconcile successful discovery results with the active device set."""
+        initial_refresh = not isinstance(self.data, dict)
         previous_data = self.data if isinstance(self.data, dict) else {}
         previous_ids = set(previous_data) | self._registered_device_ids()
         current_ids = set(result)
-        added_ids = current_ids - previous_ids
+        added_ids = set() if initial_refresh else current_ids - previous_ids
         missing_ids = previous_ids - current_ids
 
         for device_id in current_ids:
@@ -189,23 +193,17 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         ):
             if entity.config_entry_id == self._entry_id:
                 entity_registry.async_remove(entity.entity_id)
-        device_registry.async_remove_device(device.id)
+        device_registry.async_update_device(
+            device.id, remove_config_entry_id=self._entry_id
+        )
 
     @callback
     def _schedule_entry_reload(self) -> None:
         """Reload platforms once after a confirmed topology change."""
         if self._entry_id is None or self._reload_scheduled:
             return
-        entry_id = self._entry_id
         self._reload_scheduled = True
-
-        async def _reload() -> None:
-            try:
-                await self.hass.config_entries.async_reload(entry_id)
-            finally:
-                self._reload_scheduled = False
-
-        self.hass.async_create_task(_reload(), f"beatbot_reconcile_{entry_id}")
+        self.hass.config_entries.async_schedule_reload(self._entry_id)
 
     async def async_refresh_device_state(self, device_id: str) -> None:
         """Fetch state for one device and push it to entities immediately.
@@ -220,8 +218,8 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         immediately can return the previous value.
 
         Best-effort like the batch path: a connection failure is logged and
-        skipped (last-known values stay), while an auth failure escalates to
-        reauth since the token is invalid.
+        skipped (last-known values stay), while an auth failure is reported to
+        the config entry since the token is invalid.
         """
         await asyncio.sleep(POST_CONTROL_REFRESH_DELAY)
         try:
@@ -276,6 +274,7 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
             is_online,
             source="websocket",
         )
+        self.last_update_success = True
         # DataUpdateCoordinator.async_set_updated_data resets the next poll
         # deadline. Notify listeners directly so steady event traffic cannot
         # postpone the source-of-truth reconciliation poll indefinitely.
@@ -315,7 +314,7 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
                 device.is_online,
                 bool(is_online),
             )
-        apply_state(device, states, is_online)
+        device.apply_state(states, is_online)
 
     @callback
     def async_schedule_device_state_refresh(self, device_id: str) -> None:
@@ -335,12 +334,11 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
                 await self.async_refresh_device_state(device_id)
             except ConfigEntryAuthFailed:
                 _LOGGER.warning(
-                    "Post-control refresh authorization failed for %s; "
-                    "starting reauthentication",
+                    "Post-control refresh authorization failed for %s",
                     device_id,
                 )
                 if self._config_entry is not None:
-                    self._config_entry.async_start_reauth(self.hass)
+                    self._config_entry.async_start_reauth_if_available(self.hass)
             finally:
                 current = asyncio.current_task()
                 if self._refresh_tasks.get(device_id) is current:

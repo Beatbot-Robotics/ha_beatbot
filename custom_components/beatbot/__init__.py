@@ -3,11 +3,14 @@
 from dataclasses import dataclass
 import logging
 
+from beatbot_cloud import BeatbotClient
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_entry_oauth2_flow
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import BeatbotAPI
+from .api import async_get_access_token
 from .config_flow import BeatbotOAuth2Implementation
 from .coordinator import BeatbotCoordinator
 from .iot.const import DOMAIN, SUPPORTED_PLATFORMS
@@ -21,7 +24,7 @@ class BeatbotRuntimeData:
     """Runtime objects owned by a Beatbot config entry."""
 
     coordinator: BeatbotCoordinator
-    api: BeatbotAPI
+    api: BeatbotClient
     session: config_entry_oauth2_flow.OAuth2Session
     event_client: BeatbotEventClient
 
@@ -47,7 +50,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeatbotConfigEntry) -> b
 
     session = config_entry_oauth2_flow.OAuth2Session(hass, entry, implementation)
 
-    api = BeatbotAPI(hass, entry, session)
+    async def _async_access_token() -> str:
+        """Return a valid OAuth access token for the client library."""
+        return await async_get_access_token(session)
+
+    api = BeatbotClient(
+        entry.data["region"],
+        async_get_clientsession(hass),
+        _async_access_token,
+    )
     coordinator = BeatbotCoordinator(hass, api, entry)
 
     await coordinator.async_config_entry_first_refresh()
@@ -67,8 +78,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeatbotConfigEntry) -> b
 
 async def async_unload_entry(hass: HomeAssistant, entry: BeatbotConfigEntry) -> bool:
     """Unload a config entry."""
-    # Cancel any post-control refresh tasks still sleeping in their delay
-    # window before tearing down the coordinator/api/session they close over.
-    await entry.runtime_data.event_client.async_stop()
+    if not await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS):
+        return False
     entry.runtime_data.coordinator.async_cancel_pending_refreshes()
-    return await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS)
+    await entry.runtime_data.event_client.async_stop()
+    return True

@@ -1,4 +1,4 @@
-"""Tests for the Beatbot OAuth2 config flow (incl. reauth)."""
+"""Tests for the Beatbot OAuth2 config flow."""
 
 from __future__ import annotations
 
@@ -7,9 +7,10 @@ import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
-from aiohttp import ClientError, ClientResponseError
+from aiohttp import ClientError
 import pytest
-from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_USER
+from beatbot_cloud import BeatbotAuthenticationError, BeatbotConnectionError
+from homeassistant.config_entries import SOURCE_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import config_entry_oauth2_flow
@@ -18,28 +19,26 @@ from homeassistant.helpers.config_entry_oauth2_flow import (
 )
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.beatbot import config_flow as config_flow_module
 from custom_components.beatbot.config_flow import (
     BeatbotConfigFlow,
     BeatbotOAuth2Implementation,
-    _decode_access_token,
 )
 from custom_components.beatbot.iot.const import DOMAIN
 
 REDIRECT_URI = "http://example.com/auth/external/callback"
-REQUEST_INFO = SimpleNamespace(real_url="https://oauth.beatbot.com/oauth2/token")
 
 
-@pytest.mark.parametrize(
-    "token",
-    [
-        "not-a-jwt",
-        "header.!.signature",
-        "header.W10.signature",
-    ],
-)
-def test_decode_access_token_rejects_invalid_payload(token: str) -> None:
-    """Malformed and non-object JWT payloads are rejected."""
-    assert _decode_access_token(token) is None
+@pytest.fixture(autouse=True)
+def mock_resource_api(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Avoid network access while validating the regional resource API."""
+    get_devices = AsyncMock(return_value=[])
+    monkeypatch.setattr(
+        config_flow_module,
+        "BeatbotClient",
+        Mock(return_value=SimpleNamespace(get_devices=get_devices)),
+    )
+    return get_devices
 
 
 def test_oauth_implementation_metadata(hass: HomeAssistant) -> None:
@@ -48,6 +47,11 @@ def test_oauth_implementation_metadata(hass: HomeAssistant) -> None:
 
     assert implementation.name == "Beatbot"
     assert implementation.extra_authorize_data["scope"] == "device:info"
+
+
+def test_flow_does_not_define_reauth_step() -> None:
+    """Keep the custom flow aligned with the reviewed Core integration."""
+    assert "async_step_reauth" not in BeatbotConfigFlow.__dict__
 
 
 async def test_registers_local_implementation_when_missing(
@@ -75,7 +79,7 @@ async def test_registers_local_implementation_when_missing(
     assert isinstance(register.call_args.args[2], BeatbotOAuth2Implementation)
 
 
-def _make_token(sub: str, *, nonce: str = "v1", region: str | None = None) -> dict:
+def _make_token(sub: object, *, nonce: str = "v1", region: str | None = None) -> dict:
     """Build a fake OAuth2 token whose access_token is a JWT with `sub`.
 
     `nonce` differentiates tokens for the same account (simulating a refresh)
@@ -222,6 +226,96 @@ async def test_user_flow_stores_region_from_token(hass: HomeAssistant) -> None:
     assert entry.data["region"] == "cn"
 
 
+@pytest.mark.parametrize(
+    ("error", "reason"),
+    [
+        (BeatbotAuthenticationError(), "oauth_error"),
+        (BeatbotConnectionError(), "cannot_connect"),
+    ],
+)
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_user_flow_validates_resource_api(
+    hass: HomeAssistant,
+    mock_resource_api: AsyncMock,
+    error: Exception,
+    reason: str,
+) -> None:
+    """Abort when the regional device API rejects the new configuration."""
+    mock_resource_api.side_effect = error
+    _register_mock_impl(hass, _make_token("account-1", region="cn"))
+
+    result = await _start_user_flow(hass)
+    result = await _complete_external_auth(hass, result["flow_id"])
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == reason
+    assert not hass.config_entries.async_entries(DOMAIN)
+
+
+async def test_resource_api_client_receives_region_session_and_token(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Construct the library client directly from validated OAuth data."""
+    client_session = SimpleNamespace()
+    get_devices = AsyncMock(return_value=[])
+    client = Mock(return_value=SimpleNamespace(get_devices=get_devices))
+    monkeypatch.setattr(config_flow_module, "BeatbotClient", client)
+    monkeypatch.setattr(
+        config_flow_module,
+        "async_get_clientsession",
+        Mock(return_value=client_session),
+    )
+    flow = BeatbotConfigFlow()
+    flow.hass = hass
+
+    result = await flow._async_validate_resource_api(
+        {"region": "cn", "token": {"access_token": "access-token"}}
+    )
+
+    assert result is None
+    client.assert_called_once_with("cn", client_session, "access-token")
+    get_devices.assert_awaited_once()
+
+
+@pytest.mark.parametrize("sub", ["", 123, None])
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_user_flow_rejects_invalid_subject(
+    hass: HomeAssistant, sub: object
+) -> None:
+    """Require a non-empty string account subject before creating an entry."""
+    _register_mock_impl(hass, _make_token(sub, region="cn"))
+
+    result = await _start_user_flow(hass)
+    result = await _complete_external_auth(hass, result["flow_id"])
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "oauth_error"
+    assert not hass.config_entries.async_entries(DOMAIN)
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_user_flow_rejects_malformed_access_token(
+    hass: HomeAssistant,
+) -> None:
+    """Reject a token that cannot provide trusted account routing claims."""
+    _register_mock_impl(
+        hass,
+        {
+            "access_token": "not-a-jwt",
+            "refresh_token": "refresh-account-1",
+            "token_type": "bearer",
+            "expires_in": 3600,
+            "scope": "device:info",
+        },
+    )
+
+    result = await _start_user_flow(hass)
+    result = await _complete_external_auth(hass, result["flow_id"])
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "oauth_error"
+
+
 @pytest.mark.usefixtures("enable_custom_integrations")
 async def test_user_flow_aborts_authorize_url_timeout(
     hass: HomeAssistant,
@@ -240,7 +334,6 @@ async def test_user_flow_aborts_authorize_url_timeout(
     [
         (TimeoutError(), "oauth_timeout"),
         (ClientError(), "oauth_failed"),
-        (ClientResponseError(REQUEST_INFO, (), status=401), "oauth_unauthorized"),
     ],
 )
 @pytest.mark.usefixtures("enable_custom_integrations")
@@ -364,132 +457,3 @@ async def test_user_flow_aborts_duplicate_account(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
-
-
-@pytest.mark.usefixtures("enable_custom_integrations")
-async def test_reauth_updates_existing_entry_not_duplicate(hass: HomeAssistant) -> None:
-    """Reauth with the same account updates the existing entry (no new entry)."""
-    original_token = _make_token("account-1", nonce="old")
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        unique_id="account-1",
-        title="Beatbot",
-        source=SOURCE_USER,
-        data={"auth_implementation": DOMAIN, "token": original_token},
-    )
-    entry.add_to_hass(hass)
-
-    # New token for the SAME account (different nonce -> different access_token),
-    # now also carrying a region claim (simulating the backend adding region).
-    _register_mock_impl(hass, _make_token("account-1", nonce="new", region="cn"))
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={
-            "source": SOURCE_REAUTH,
-            "entry_id": entry.entry_id,
-            "title_placeholders": {"name": entry.title},
-            "unique_id": entry.unique_id,
-        },
-        data=entry.data,
-    )
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "reauth_confirm"
-
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "pick_implementation"
-
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"implementation": DOMAIN}
-    )
-    assert result["type"] is FlowResultType.EXTERNAL_STEP
-
-    result = await _complete_external_auth(hass, result["flow_id"])
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "reauth_successful"
-
-    entries = hass.config_entries.async_entries(DOMAIN)
-    assert len(entries) == 1
-    assert entries[0].entry_id == entry.entry_id
-    assert entries[0].unique_id == "account-1"
-    new_access_token = entries[0].data["token"]["access_token"]
-    assert new_access_token != original_token["access_token"]
-    # Region from the refreshed token is persisted on the entry.
-    assert entries[0].data["region"] == "cn"
-
-
-@pytest.mark.usefixtures("enable_custom_integrations")
-async def test_reauth_different_account_aborts_unique_id_mismatch(
-    hass: HomeAssistant,
-) -> None:
-    """Reauth with a different account aborts with unique_id_mismatch."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        unique_id="account-1",
-        title="Beatbot",
-        source=SOURCE_USER,
-        data={"auth_implementation": DOMAIN, "token": _make_token("account-1")},
-    )
-    entry.add_to_hass(hass)
-
-    # Re-authenticate as a DIFFERENT account.
-    _register_mock_impl(hass, _make_token("account-2"))
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={
-            "source": SOURCE_REAUTH,
-            "entry_id": entry.entry_id,
-            "title_placeholders": {"name": entry.title},
-            "unique_id": entry.unique_id,
-        },
-        data=entry.data,
-    )
-    assert result["step_id"] == "reauth_confirm"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"implementation": DOMAIN}
-    )
-    result = await _complete_external_auth(hass, result["flow_id"])
-
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "unique_id_mismatch"
-
-    entries = hass.config_entries.async_entries(DOMAIN)
-    assert len(entries) == 1
-    assert entries[0].entry_id == entry.entry_id
-    assert entries[0].unique_id == "account-1"
-
-
-@pytest.mark.usefixtures("enable_custom_integrations")
-async def test_reauth_aborts_unknown_region(hass: HomeAssistant) -> None:
-    """Reauthentication rejects a same-account token without a known region."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        unique_id="account-1",
-        title="Beatbot",
-        source=SOURCE_USER,
-        data={"auth_implementation": DOMAIN, "token": _make_token("account-1")},
-    )
-    entry.add_to_hass(hass)
-    _register_mock_impl(hass, _make_token("account-1", nonce="new"))
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={
-            "source": SOURCE_REAUTH,
-            "entry_id": entry.entry_id,
-            "title_placeholders": {"name": entry.title},
-            "unique_id": entry.unique_id,
-        },
-        data=entry.data,
-    )
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"implementation": DOMAIN}
-    )
-    result = await _complete_external_auth(hass, result["flow_id"])
-
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "unknown_region"

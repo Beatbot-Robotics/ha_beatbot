@@ -48,7 +48,7 @@ class BeatbotSwitch(BeatbotEntity, SwitchEntity):
     @property
     def available(self) -> bool:
         """Return whether the switch can be controlled."""
-        return self.data.is_online and self.coordinator.last_update_success
+        return super().available and self.data.is_online
 
     @property
     def is_on(self) -> bool:
@@ -66,10 +66,8 @@ class BeatbotSwitch(BeatbotEntity, SwitchEntity):
 
     async def _async_set_enabled(self, enabled: str) -> None:
         await self._async_send_command(
-            self.coordinator.api.set_switch(
-                self._device_id,
-                self._description.interface_info,
-                enabled,
+            lambda: self.coordinator.api.set_switch(
+                self._device_id, self._description.interface_info, enabled
             )
         )
         self.coordinator.async_schedule_device_state_refresh(self._device_id)

@@ -7,15 +7,11 @@
       "auth": {
         "title": "Beatbot-Konto autorisieren",
         "description": "Folge dem Link, um dich bei Beatbot anzumelden und Home Assistant den Zugriff auf deine Gerate zu erlauben."
-      },
-      "reauth_confirm": {
-        "title": "[%key:common::config_flow::title::reauth%]",
-        "description": "Die Beatbot-Integration muss dein Konto erneut authentifizieren."
       }
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits konfiguriert.",
-      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+      "cannot_connect": "Verbindung zu den Beatbot-Servern nicht moglich.",
       "authorize_url_timeout": "Zeituberschreitung beim Erzeugen der Autorisierungs-URL.",
       "no_url_available": "Keine Autorisierungs-URL verfugbar. Stelle sicher, dass Home Assistant erreichbar ist, oder aktiviere My Home Assistant.",
       "oauth_timeout": "Zeituberschreitung beim Abrufen des OAuth-Tokens.",
@@ -23,7 +19,6 @@
       "oauth_unauthorized": "Autorisierung abgelehnt, weil die Authentifizierung fehlgeschlagen ist.",
       "oauth_error": "Der OAuth-Server hat ein ungultiges Token zuruckgegeben.",
       "user_rejected_authorize": "Du hast die Autorisierung abgelehnt: {error}.",
-      "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
       "missing_credentials": "[%key:common::config_flow::abort::oauth2_missing_credentials%]",
       "missing_configuration": "[%key:common::config_flow::abort::oauth2_missing_configuration%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",

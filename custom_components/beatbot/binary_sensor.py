@@ -69,7 +69,7 @@ class BeatbotChargingSensor(BeatbotEntity, BinarySensorEntity):
     @property
     def available(self) -> bool:
         """Return whether charging state is available."""
-        return self.data.is_online and self.coordinator.last_update_success
+        return super().available and self.data.is_online
 
     @property
     def is_on(self) -> bool:

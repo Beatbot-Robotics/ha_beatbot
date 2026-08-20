@@ -7,15 +7,11 @@
       "auth": {
         "title": "Autorizar conta Beatbot",
         "description": "Siga o link para entrar na Beatbot e autorizar o Home Assistant a acessar os seus dispositivos."
-      },
-      "reauth_confirm": {
-        "title": "[%key:common::config_flow::title::reauth%]",
-        "description": "A integracao Beatbot precisa autenticar novamente a sua conta."
       }
     },
     "abort": {
       "already_configured": "Esta conta ja esta configurada.",
-      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+      "cannot_connect": "Nao foi possivel conectar aos servidores Beatbot.",
       "authorize_url_timeout": "Tempo esgotado ao gerar a URL de autorizacao.",
       "no_url_available": "Nenhuma URL de autorizacao disponivel. Certifique-se de que o Home Assistant esteja acessivel ou ative o My Home Assistant.",
       "oauth_timeout": "Tempo esgotado ao obter o token OAuth.",
@@ -23,7 +19,6 @@
       "oauth_unauthorized": "Autorizacao recusada porque a autenticacao falhou.",
       "oauth_error": "O servidor OAuth retornou um token invalido.",
       "user_rejected_authorize": "Voce rejeitou a autorizacao: {error}.",
-      "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
       "missing_credentials": "[%key:common::config_flow::abort::oauth2_missing_credentials%]",
       "missing_configuration": "[%key:common::config_flow::abort::oauth2_missing_configuration%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",

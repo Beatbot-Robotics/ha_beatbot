@@ -42,6 +42,7 @@ The integration uses Home Assistant's OAuth2 config flow with PKCE. During setup
 
 Requirements:
 
+- Home Assistant 2026.7.0 or newer is required.
 - Home Assistant must be able to generate a valid external callback URL.
 - My Home Assistant can be used for the callback redirect.
 - The Beatbot account must authorize Home Assistant access.
@@ -49,10 +50,9 @@ Requirements:
 
 The `sub` claim is used as the unique ID for the config entry. This prevents the same Beatbot account from being configured more than once.
 
-Reauthentication
-----------------
-
-If Beatbot authentication fails after setup, Home Assistant starts a reauthentication flow. Reauth updates the existing entry only when the authorized account matches the original account. If a different Beatbot account is used, the flow aborts with `unique_id_mismatch`.
+The integration does not implement a separate reauthentication flow. If the
+Beatbot authorization becomes invalid, remove the integration entry and add it
+again to authorize the account with fresh credentials.
 
 Removal
 -------
@@ -72,7 +72,8 @@ Development
 Run tests from the repository root with the project virtual environment:
 
 ```bash
+.venv/bin/python -m pip install --upgrade "beatbot-cloud==0.4.1"
 .venv/bin/pytest
 ```
 
-The test suite covers config flow setup, duplicate-account prevention, reauthentication, OAuth error handling, API response handling, coordinator behavior, and entity setup.
+The test suite covers config flow setup, duplicate-account prevention, OAuth error handling, API response handling, coordinator behavior, and entity setup.

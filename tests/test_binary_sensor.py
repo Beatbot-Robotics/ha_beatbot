@@ -29,7 +29,7 @@ def _make_coordinator(work_status: int, *, is_online: bool = True) -> SimpleName
         versions=[],
         is_online=is_online,
     )
-    return SimpleNamespace(data={DEVICE_ID: device})
+    return SimpleNamespace(data={DEVICE_ID: device}, last_update_success=True)
 
 
 @pytest.mark.parametrize(

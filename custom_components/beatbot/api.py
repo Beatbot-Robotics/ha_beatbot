@@ -1,63 +1,51 @@
-"""Home Assistant adapter for the Beatbot cloud API client."""
+"""Home Assistant OAuth adapter for the Beatbot cloud client."""
 
 from __future__ import annotations
 
-import logging
-from typing import Any
-
+from aiohttp import ClientError, ClientResponseError
 from beatbot_cloud import (
     BeatbotAuthenticationError,
-    BeatbotClient,
     BeatbotConnectionError,
 )
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import config_entry_oauth2_flow
 
 BeatbotAuthError = BeatbotAuthenticationError
-__all__ = ["BeatbotAuthError", "BeatbotConnectionError"]
-_LOGGER = logging.getLogger(__name__)
+
+__all__ = [
+    "BeatbotAuthError",
+    "BeatbotConnectionError",
+    "async_get_access_token",
+]
 
 
-class BeatbotAPI(BeatbotClient):
-    """Beatbot client backed by Home Assistant's OAuth2 session."""
+async def async_get_access_token(
+    session: config_entry_oauth2_flow.OAuth2Session,
+) -> str:
+    """Return a valid token and translate OAuth failures for the library."""
+    try:
+        await session.async_ensure_token_valid()
+    except ConfigEntryAuthFailed as err:
+        raise BeatbotAuthenticationError from err
+    except ClientResponseError as err:
+        if 400 <= err.status < 500 and err.status not in (408, 429):
+            raise BeatbotAuthenticationError from err
+        raise BeatbotConnectionError("OAuth token refresh failed") from err
+    except (TimeoutError, ClientError) as err:
+        raise BeatbotConnectionError("OAuth token refresh failed") from err
+    except (AttributeError, KeyError, TypeError, ValueError, OverflowError) as err:
+        raise BeatbotConnectionError(
+            "OAuth token refresh returned invalid data"
+        ) from err
 
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        entry: ConfigEntry,
-        session: config_entry_oauth2_flow.OAuth2Session,
-    ) -> None:
-        """Initialize the region-aware client."""
-        self._hass = hass
-        self._entry = entry
-        self._session = session
-        if not isinstance(region := entry.data.get("region"), str):
-            raise TypeError("Beatbot config entry has no region")
-        super().__init__(region, self._async_request)
-
-    async def _async_request(self, method: str, url: str, **kwargs: Any):
-        """Forward a request through Home Assistant's refreshing OAuth session."""
-        return await self._session.async_request(method, url, **kwargs)
-
-    async def _request(
-        self,
-        method: str,
-        path: str,
-        *,
-        params: dict[str, str] | None = None,
-        json_body: Any | None = None,
-    ) -> Any:
-        """Log OAuth reauthentication failures with config-entry context."""
-        try:
-            return await super()._request(
-                method, path, params=params, json_body=json_body
-            )
-        except BeatbotAuthenticationError:
-            _LOGGER.warning(
-                "Beatbot OAuth token refresh rejected (entry_id=%s); "
-                "user reauthentication is required",
-                self._entry.entry_id,
-            )
-            raise
+    try:
+        token = session.token
+    except (AttributeError, KeyError, TypeError) as err:
+        raise BeatbotAuthenticationError("Missing OAuth access token") from err
+    if not isinstance(token, dict):
+        raise BeatbotAuthenticationError("Missing OAuth access token")
+    access_token = token.get("access_token")
+    if not isinstance(access_token, str) or not access_token:
+        raise BeatbotAuthenticationError("Missing OAuth access token")
+    return access_token

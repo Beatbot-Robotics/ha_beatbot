@@ -45,7 +45,9 @@ async def test_async_setup_entry_starts_runtime_objects(
     event_client.async_start = Mock()
 
     with (
-        patch("custom_components.beatbot.BeatbotAPI", return_value=Mock()) as api_cls,
+        patch(
+            "custom_components.beatbot.BeatbotClient", return_value=Mock()
+        ) as api_cls,
         patch(
             "custom_components.beatbot.BeatbotCoordinator",
             return_value=coordinator,
@@ -58,6 +60,8 @@ async def test_async_setup_entry_starts_runtime_objects(
         assert await async_setup_entry(hass, entry) is True
 
     api_cls.assert_called_once()
+    assert api_cls.call_args.args[0] == "cn"
+    assert callable(api_cls.call_args.args[2])
     coordinator_cls.assert_called_once()
     coordinator.async_config_entry_first_refresh.assert_awaited_once()
     hass.config_entries.async_forward_entry_setups.assert_awaited_once_with(
@@ -66,6 +70,7 @@ async def test_async_setup_entry_starts_runtime_objects(
     event_client_cls.assert_called_once()
     event_client.async_start.assert_called_once()
     assert entry.runtime_data.coordinator is coordinator
+    assert entry.runtime_data.api is api_cls.return_value
     assert entry.runtime_data.event_client is event_client
 
 
@@ -86,7 +91,7 @@ async def test_async_unload_entry_stops_events_and_unloads_platforms(
     event_client.async_stop = AsyncMock()
 
     with (
-        patch("custom_components.beatbot.BeatbotAPI", return_value=Mock()),
+        patch("custom_components.beatbot.BeatbotClient", return_value=Mock()),
         patch("custom_components.beatbot.BeatbotCoordinator", return_value=coordinator),
         patch(
             "custom_components.beatbot.BeatbotEventClient", return_value=event_client
@@ -100,6 +105,36 @@ async def test_async_unload_entry_stops_events_and_unloads_platforms(
     hass.config_entries.async_unload_platforms.assert_awaited_once_with(
         entry, SUPPORTED_PLATFORMS
     )
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_async_unload_failure_keeps_runtime_services(
+    hass: HomeAssistant,
+) -> None:
+    """Keep events and command refreshes alive if a platform cannot unload."""
+    entry = _entry()
+    entry.add_to_hass(hass)
+    hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=False)
+    coordinator = Mock()
+    coordinator.async_config_entry_first_refresh = AsyncMock()
+    coordinator.async_cancel_pending_refreshes = Mock()
+    event_client = Mock()
+    event_client.async_start = Mock()
+    event_client.async_stop = AsyncMock()
+
+    with (
+        patch("custom_components.beatbot.BeatbotClient", return_value=Mock()),
+        patch("custom_components.beatbot.BeatbotCoordinator", return_value=coordinator),
+        patch(
+            "custom_components.beatbot.BeatbotEventClient", return_value=event_client
+        ),
+    ):
+        await async_setup_entry(hass, entry)
+        assert await async_unload_entry(hass, entry) is False
+
+    coordinator.async_cancel_pending_refreshes.assert_not_called()
+    event_client.async_stop.assert_not_awaited()
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
@@ -123,7 +158,7 @@ async def test_async_setup_entry_propagates_first_refresh_failures(
     coordinator.async_config_entry_first_refresh = AsyncMock(side_effect=error)
 
     with (
-        patch("custom_components.beatbot.BeatbotAPI", return_value=Mock()),
+        patch("custom_components.beatbot.BeatbotClient", return_value=Mock()),
         patch("custom_components.beatbot.BeatbotCoordinator", return_value=coordinator),
         patch("custom_components.beatbot.BeatbotEventClient") as event_client_cls,
         pytest.raises(expected),

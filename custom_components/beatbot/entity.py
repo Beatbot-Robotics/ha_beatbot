@@ -9,7 +9,7 @@ first or fail to load.
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Awaitable, Callable
 
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -37,13 +37,16 @@ class BeatbotEntity(CoordinatorEntity[BeatbotCoordinator]):
         """Return the latest data for this device."""
         return self.coordinator.data[self._device_id]
 
-    async def _async_send_command(self, coro: Any) -> None:
+    @property
+    def available(self) -> bool:
+        """Return whether coordinator data still contains this device."""
+        return super().available and self._device_id in self.coordinator.data
+
+    async def _async_send_command(self, command: Callable[[], Awaitable[None]]) -> None:
         """Run a control API call with HA-idiomatic error translation.
 
-        - Auth failure escalates to ConfigEntryAuthFailed so HA triggers the
-          reauth flow — consistent with the coordinator's poll path. A raw
-          BeatbotAuthError from a service call would otherwise just fail the
-          call with no prompt to re-login.
+        - Auth failure escalates to ConfigEntryAuthFailed, consistent with the
+          coordinator's poll path, instead of exposing a library exception.
         - Connection/transport failure surfaces as HomeAssistantError so the
           user sees a readable message instead of an opaque stack.
 
@@ -62,7 +65,7 @@ class BeatbotEntity(CoordinatorEntity[BeatbotCoordinator]):
                 },
             )
         try:
-            await coro
+            await command()
         except BeatbotAuthError as err:
             raise ConfigEntryAuthFailed from err
         except BeatbotConnectionError as err:

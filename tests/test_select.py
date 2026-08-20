@@ -29,6 +29,7 @@ def _make_coordinator() -> SimpleNamespace:
     )
     coordinator = SimpleNamespace(
         data={DEVICE_ID: device},
+        last_update_success=True,
         api=SimpleNamespace(set_work_mode=AsyncMock()),
         async_apply_device_event=MagicMock(
             side_effect=lambda _device_id, states: setattr(

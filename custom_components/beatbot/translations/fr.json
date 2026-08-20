@@ -7,15 +7,11 @@
       "auth": {
         "title": "Autoriser le compte Beatbot",
         "description": "Suivez le lien pour vous connecter a Beatbot et autoriser Home Assistant a acceder a vos appareils."
-      },
-      "reauth_confirm": {
-        "title": "[%key:common::config_flow::title::reauth%]",
-        "description": "L'integration Beatbot doit reauthentifier votre compte."
       }
     },
     "abort": {
       "already_configured": "Ce compte est deja configure.",
-      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+      "cannot_connect": "Impossible de se connecter aux serveurs Beatbot.",
       "authorize_url_timeout": "Delai depasse lors de la generation de l'URL d'autorisation.",
       "no_url_available": "Aucune URL d'autorisation disponible. Assurez-vous que Home Assistant est accessible, ou activez My Home Assistant.",
       "oauth_timeout": "Delai depasse lors de la recuperation du jeton OAuth.",
@@ -23,7 +19,6 @@
       "oauth_unauthorized": "Autorisation refusee car l'authentification a echoue.",
       "oauth_error": "Le serveur OAuth a renvoye un jeton non valide.",
       "user_rejected_authorize": "Vous avez refuse l'autorisation : {error}.",
-      "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
       "missing_credentials": "[%key:common::config_flow::abort::oauth2_missing_credentials%]",
       "missing_configuration": "[%key:common::config_flow::abort::oauth2_missing_configuration%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",

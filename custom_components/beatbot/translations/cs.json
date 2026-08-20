@@ -7,15 +7,11 @@
       "auth": {
         "title": "Autorizovat ucet Beatbot",
         "description": "Otevri odkaz, prihlas se k Beatbot a povol Home Assistant pristup ke svym zarizenim."
-      },
-      "reauth_confirm": {
-        "title": "[%key:common::config_flow::title::reauth%]",
-        "description": "Integrace Beatbot potrebuje znovu overit tvuj ucet."
       }
     },
     "abort": {
       "already_configured": "Tento ucet je jiz nakonfigurovan.",
-      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+      "cannot_connect": "Nelze se pripojit k serverum Beatbot.",
       "authorize_url_timeout": "Vyprsel cas pri generovani autorizacni URL.",
       "no_url_available": "Neni dostupna zadna autorizacni URL. Ujisti se, ze je Home Assistant dostupny, nebo povol My Home Assistant.",
       "oauth_timeout": "Vyprsel cas pri ziskavani OAuth tokenu.",
@@ -23,7 +19,6 @@
       "oauth_unauthorized": "Autorizace byla odmitnuta, protoze overeni selhalo.",
       "oauth_error": "OAuth server vratil neplatny token.",
       "user_rejected_authorize": "Odmitl jsi autorizaci: {error}.",
-      "unique_id_mismatch": "[%key:common::config_flow::abort::unique_id_mismatch%]",
       "missing_credentials": "[%key:common::config_flow::abort::oauth2_missing_credentials%]",
       "missing_configuration": "[%key:common::config_flow::abort::oauth2_missing_configuration%]",
       "already_in_progress": "[%key:common::config_flow::abort::already_in_progress%]",

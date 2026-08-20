@@ -32,7 +32,7 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
     @property
     def available(self) -> bool:
         """Return whether the work mode can be controlled."""
-        return self.data.is_online and self.coordinator.last_update_success
+        return super().available and self.data.is_online
 
     @property
     def current_option(self) -> str | None:
@@ -48,7 +48,7 @@ class BeatbotWorkModeSelect(BeatbotEntity, SelectEntity):
             return
         target_value = self._option_to_value[option]
         await self._async_send_command(
-            self.coordinator.api.set_work_mode(self._device_id, option)
+            lambda: self.coordinator.api.set_work_mode(self._device_id, option)
         )
         # The command response confirms acceptance, but the cloud state event
         # arrives later. Apply the selected value immediately so HA does not
