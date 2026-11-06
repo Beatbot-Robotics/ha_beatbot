@@ -44,6 +44,7 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
             update_interval=timedelta(seconds=NETWORK_REFRESH_INTERVAL),
             config_entry=config_entry,
         )
+        self._pending_events: list[tuple[str, dict | None, bool | None]] | None = None
         self.api = api
         self._config_entry = config_entry
         self._entry_id = config_entry.entry_id if config_entry is not None else None
@@ -55,6 +56,19 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         self._refresh_tasks: dict[str, asyncio.Task] = {}
 
     async def _async_update_data(self) -> dict[str, BeatbotDeviceData]:
+        self._pending_events = []
+        try:
+            result = await self._async_fetch_data()
+            # Pushes received during REST requests take precedence over the snapshot.
+            for device_id, states, is_online in self._pending_events:
+                if (device := result.get(device_id)) is not None:
+                    device.apply_state(states, is_online)
+            return result
+        finally:
+            self._pending_events = None
+
+    async def _async_fetch_data(self) -> dict[str, BeatbotDeviceData]:
+        """Fetch discovery and overlay the latest runtime state."""
         try:
             devices = await self.api.get_devices()
         except BeatbotAuthError as err:
@@ -114,7 +128,9 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         previous_data = self.data if isinstance(self.data, dict) else {}
         for device_id, device in result.items():
             if (previous_device := previous_data.get(device_id)) is not None:
+                is_online = device.is_online
                 device.copy_runtime_state_from(previous_device)
+                device.is_online = is_online
             if (state := states.get(device_id)) is not None:
                 self._apply_state_with_logging(
                     device_id,
@@ -263,6 +279,10 @@ class BeatbotCoordinator(DataUpdateCoordinator[dict[str, BeatbotDeviceData]]):
         is_online: bool | None = None,
     ) -> None:
         """Overlay a pushed state delta without changing the poll cadence."""
+        if self._pending_events is not None:
+            self._pending_events.append(
+                (device_id, states.copy() if states is not None else None, is_online)
+            )
         device = self.data.get(device_id)
         if device is None:
             _LOGGER.debug("Ignoring event for undiscovered device %s", device_id)

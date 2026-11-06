@@ -307,8 +307,10 @@ async def test_initial_poll_does_not_reload_discovered_devices(
     coordinator._schedule_entry_reload.assert_not_called()
 
 
+@pytest.mark.parametrize("is_online", [True, False])
 async def test_poll_preserves_state_missing_from_batch(
     hass: HomeAssistant,
+    is_online: bool,
 ) -> None:
     """Keep runtime values when discovery returns no state for a device."""
     previous = _device("dev-1", SUPPORTED_PRODUCT)
@@ -316,11 +318,12 @@ async def test_poll_preserves_state_missing_from_batch(
     previous.work_mode = 2
     previous.error_code = 4
     previous.battery_level = 42
-    previous.is_online = False
+    previous.is_online = not is_online
     previous.child_lock = True
     previous.voice_disturb = True
     discovered = _device("dev-1", SUPPORTED_PRODUCT)
     discovered.name = "Updated name"
+    discovered.is_online = is_online
     api = SimpleNamespace(
         get_devices=AsyncMock(return_value=[discovered]),
         get_device_states=AsyncMock(return_value={}),
@@ -335,7 +338,7 @@ async def test_poll_preserves_state_missing_from_batch(
     assert data["dev-1"].work_mode == 2
     assert data["dev-1"].error_code == 4
     assert data["dev-1"].battery_level == 42
-    assert data["dev-1"].is_online is False
+    assert data["dev-1"].is_online is is_online
     assert data["dev-1"].child_lock is True
     assert data["dev-1"].voice_disturb is True
 
@@ -456,3 +459,62 @@ def test_entry_reload_is_scheduled_once(hass: HomeAssistant) -> None:
     coordinator._schedule_entry_reload()
 
     hass.config_entries.async_schedule_reload.assert_called_once_with("entry")
+
+
+@pytest.mark.parametrize("method", ["get_devices", "get_device_states"])
+async def test_poll_preserves_concurrent_push(hass: HomeAssistant, method: str) -> None:
+    """Replay ordered pushes after a stale REST snapshot is applied."""
+    previous = _device("dev-1", SUPPORTED_PRODUCT)
+    discovered = _device("dev-1", SUPPORTED_PRODUCT)
+    api = SimpleNamespace(
+        get_devices=AsyncMock(return_value=[discovered]),
+        get_device_states=AsyncMock(
+            return_value={
+                "dev-1": {"states": {"vacuum.battery": 10}, "is_online": True}
+            }
+        ),
+    )
+    coordinator = BeatbotCoordinator(hass, api)
+    coordinator.async_set_updated_data({"dev-1": previous})
+    started = asyncio.Event()
+    release = asyncio.Event()
+    response = getattr(api, method).return_value
+
+    async def delayed_response() -> object:
+        started.set()
+        await release.wait()
+        return response
+
+    getattr(api, method).side_effect = delayed_response
+    refresh = asyncio.create_task(coordinator._async_update_data())
+    await started.wait()
+    coordinator.async_apply_device_event("dev-1", {"vacuum.battery": 42})
+    coordinator.async_apply_device_event("dev-1", {"vacuum.battery": 43}, False)
+    assert previous.battery_level == 43
+    assert previous.is_online is False
+    release.set()
+    data = await refresh
+
+    assert data["dev-1"].battery_level == 43
+    assert data["dev-1"].is_online is False
+
+
+async def test_failed_poll_discards_buffered_push(hass: HomeAssistant) -> None:
+    """A failed poll must not replay old events over the next successful poll."""
+    api = SimpleNamespace(get_devices=AsyncMock(), get_device_states=AsyncMock())
+    coordinator = BeatbotCoordinator(hass, api)
+    coordinator.async_set_updated_data({"dev-1": _device("dev-1", SUPPORTED_PRODUCT)})
+
+    async def failed_discovery() -> list[BeatbotDeviceData]:
+        coordinator.async_apply_device_event("dev-1", {"vacuum.battery": 42})
+        raise BeatbotConnectionError("offline")
+
+    api.get_devices.side_effect = failed_discovery
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+    api.get_devices.side_effect = None
+    api.get_devices.return_value = [_device("dev-1", SUPPORTED_PRODUCT)]
+    api.get_device_states.return_value = {"dev-1": {"states": {"vacuum.battery": 75}}}
+    data = await coordinator._async_update_data()
+    assert data["dev-1"].battery_level == 75
